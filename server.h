@@ -5,8 +5,37 @@
 #include <event.h>
 #include <netinet/in.h>
 #include "elist.h"
+#include "ubbp.h"
 
 #define PROGRAM_NAME "pushpoold"
+
+enum {
+	BC_OP_NOP		= 0,		/* no-op (cli or srv) */
+
+	BC_OP_LOGIN		= 1,		/* login (cli) */
+	BC_OP_CONFIG		= 2,		/* config (cli) */
+	BC_OP_GETWORK		= 3,		/* getwork (cli) */
+	BC_OP_SOLUTION		= 4,		/* work solution (cli) */
+
+	BC_OP_LOGIN_RESP	= 100,		/* login resp (srv) */
+	BC_OP_CONFIG_RESP	= 101,		/* config resp (srv) */
+	BC_OP_WORK		= 102,		/* work unit (srv) */
+};
+
+struct tcp_read {
+	void			*buf;		/* ptr to storage buffer */
+	unsigned int		len;		/* total storage size */
+	unsigned int		curlen;		/* amount of buffer in use */
+	bool			(*cb)(void *, void *, bool); /* callback*/
+	void			*priv;		/* app-private callback arg */
+	struct list_head	node;
+};
+
+struct tcp_read_state {
+	struct list_head	q;		/* read queue */
+	int			fd;		/* network socket fd */
+	void			*priv;		/* app-specific data */
+};
 
 struct client {
 	struct sockaddr_in6	addr;		/* inet address */
@@ -15,6 +44,14 @@ struct client {
 	int			fd;		/* socket */
 	struct event		ev;
 	short			ev_mask;	/* EV_READ and/or EV_WRITE */
+
+	struct tcp_read_state	rst;
+
+	bool			logged_in;
+
+	struct ubbp_header	ubbp;
+
+	void			*msg;
 };
 
 struct server_stats {

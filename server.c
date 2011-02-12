@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <locale.h>
@@ -31,15 +32,23 @@
 #include <signal.h>
 #include <syslog.h>
 #include <fcntl.h>
+#include <jansson.h>
 #include <string.h>
+#include <zlib.h>
 #include <netdb.h>
 #include <stdarg.h>
+#include <endian.h>
 #include <argp.h>
 #include "server.h"
+
+#define PUSHPOOL_UBBP_MAGIC "PMIN"
 
 const char *argp_program_version = PACKAGE_VERSION;
 
 enum {
+	CLI_RD_TIMEOUT		= 30,
+	CLI_MAX_MSG		= (1 * 1024 * 1024),
+
 	SFL_FOREGROUND		= (1 << 0),	/* run in foreground */
 };
 
@@ -124,13 +133,140 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static struct client *cli_alloc(void)
+static void tcp_read_init(struct tcp_read_state *rst, int fd, void *priv)
+{
+	memset(rst, 0, sizeof(*rst));
+
+	rst->fd = fd;
+	rst->priv = priv;
+	INIT_LIST_HEAD(&rst->q);
+}
+
+static bool tcp_read(struct tcp_read_state *rst,
+		     void *buf, unsigned int buflen,
+		     bool (*cb)(void *rst_priv, void *priv, bool success),
+		     void *priv)
+{
+	struct tcp_read *rd;
+
+	rd = calloc(1, sizeof(*rd));
+	if (!rd) {
+		applog(LOG_ERR, "OOM");
+		return false;
+	}
+
+	rd->buf = buf;
+	rd->len = buflen;
+	rd->cb = cb;
+	rd->priv = priv;
+	INIT_LIST_HEAD(&rd->node);
+
+	list_add_tail(&rd->node, &rst->q);
+
+	return true;
+}
+
+static int tcp_read_exec(struct tcp_read_state *rst, struct tcp_read *rd)
+{
+	ssize_t rrc;
+	unsigned int to_read = rd->len - rd->curlen;
+	int ok = true;
+
+	rrc = read(rst->fd, rd->buf, to_read);
+
+	if (rrc < 0) {			/* error */
+		if (errno == EAGAIN)
+			return -1;
+
+		syslogerr("TCP read");
+		return 0;
+	}
+	if (rrc == 0)			/* end of file (net disconnect) */
+		return 0;
+
+	rd->curlen += rrc;		/* partial completion */
+	if (rd->curlen < rd->len)
+		return 1;
+
+	/* full read completion; call callback and remove from list */
+
+	if (rd->cb)
+		ok = rd->cb(rst->priv, rd->priv, true);
+
+	memset(rd, 0, sizeof(*rd));	/* poison */
+	free(rd);
+
+	return ok ? 1 : 0;
+}
+
+static bool tcp_read_runq(struct tcp_read_state *rst)
+{
+	struct tcp_read *rd, *tmp;
+	bool ok = true;
+
+	list_for_each_entry_safe(rd, tmp, &rst->q, node) {
+		int rc;
+
+		rc = tcp_read_exec(rst, rd);
+		if (rc < 0)
+			break;
+		if (rc == 0) {
+			ok = false;
+			break;
+		}
+	}
+
+	return ok;
+}
+
+static json_t *cjson_decode(void *buf, size_t buflen)
+{
+	json_t *obj = NULL;
+	json_error_t err;
+	void *obj_unc = NULL;
+	unsigned long dest_len;
+	void *comp_p;
+	uint32_t unc_len;
+	unsigned char zero = 0;
+
+	if (buflen < 6)
+		return NULL;
+
+	unc_len = le32toh(*((uint32_t *)buf));
+	if (unc_len > CLI_MAX_MSG)
+		return NULL;
+
+	obj_unc = malloc(unc_len + 1);
+	if (!obj_unc)
+		return NULL;
+
+	comp_p = buf + 4;
+	if (uncompress(obj_unc, &dest_len, comp_p, buflen - 4) != Z_OK)
+		goto out;
+	if (dest_len != unc_len)
+		goto out;
+	memcpy(obj_unc + unc_len, &zero, 1);	/* null terminate */
+
+	obj = json_loads(obj_unc, &err);
+
+out:
+	free(obj_unc);
+
+	return obj;
+}
+
+static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
+				socklen_t addrlen)
 {
 	struct client *cli;
 
 	cli = calloc(1, sizeof(*cli));
 	if (!cli)
 		return NULL;
+
+	cli->fd = fd;
+	memcpy(&cli->addr, addr, addrlen);
+	tcp_read_init(&cli->rst, cli->fd, cli);
 	
 	return cli;
 }
@@ -151,43 +287,167 @@ static void cli_free(struct client *cli)
 
 	if (debugging)
 		applog(LOG_DEBUG, "client %s ended", cli->addr_host);
+
+	free(cli->msg);
 	
+	memset(cli, 0, sizeof(*cli));	/* poison */
 	free(cli);
+}
+
+static bool cli_op_login(struct client *cli, json_t *obj)
+{
+	/* FIXME */
+	return false;
+}
+
+static bool cli_op_config(struct client *cli, json_t *obj)
+{
+	/* FIXME */
+	return false;
+}
+
+static bool cli_op_getwork(struct client *cli)
+{
+	/* FIXME */
+	return false;
+}
+
+static bool cli_op_solution(struct client *cli)
+{
+	/* FIXME */
+	return false;
+}
+
+static bool cli_msg(struct client *cli)
+{
+	uint32_t op = UBBP_OP(cli->ubbp.op_size);
+	uint32_t size = UBBP_SIZE(cli->ubbp.op_size);
+	json_t *obj = NULL;
+	bool rc = false;
+
+	/* LOGIN must always be first msg from client */
+	if (!cli->logged_in && (op != BC_OP_LOGIN))
+		return false;
+
+	/* decode JSON messages, for opcodes that require it */
+	switch (op) {
+	case BC_OP_LOGIN:
+	case BC_OP_CONFIG:
+		obj = cjson_decode(cli->msg, size);
+		if (!json_is_object(obj))
+			goto out;
+		break;
+
+	default:
+		/* do nothing */
+		break;
+	}
+
+	/* message processing, determined by opcode */
+	switch (op) {
+	case BC_OP_NOP:
+		rc = true;
+		break;
+	case BC_OP_LOGIN:
+		rc = cli_op_login(cli, obj);
+		break;
+	case BC_OP_CONFIG:
+		rc = cli_op_config(cli, obj);
+		break;
+	case BC_OP_GETWORK:
+		if (size > 0)
+			break;
+		rc = cli_op_getwork(cli);
+		break;
+	case BC_OP_SOLUTION:
+		rc = cli_op_solution(cli);
+		break;
+
+	default:
+		/* invalid op.  fall through to function return stmt */
+		break;
+	}
+
+out:
+	json_decref(obj);
+
+	return rc;
+}
+
+static bool cli_read_msg(void *rst_priv, void *priv, bool success)
+{
+	struct client *cli = rst_priv;
+	if (!success)
+		return false;
+
+	return cli_msg(cli);
+}
+
+static bool cli_read_hdr(void *rst_priv, void *priv, bool success)
+{
+	struct client *cli = rst_priv;
+	uint32_t size;
+
+	if (!success)
+		return false;
+
+	if (memcmp(cli->ubbp.magic, PUSHPOOL_UBBP_MAGIC, 4))
+		return false;
+	cli->ubbp.op_size = le32toh(cli->ubbp.op_size);
+	size = UBBP_SIZE(cli->ubbp.op_size);
+	if (size > CLI_MAX_MSG)
+		return false;
+
+	if (size == 0)
+		return cli_msg(cli);
+
+	cli->msg = malloc(size);
+	if (!cli->msg)
+		return false;
+	
+	return tcp_read(&cli->rst, cli->msg, size, cli_read_msg, NULL);
 }
 
 static void tcp_cli_event(int fd, short events, void *userdata)
 {
 	struct client *cli = userdata;
+	bool ok = true;
 
-	/* FIXME: do something */
-	(void) cli;
+	if (events & EV_READ)
+		ok = tcp_read_runq(&cli->rst);
+	if (events & EV_TIMEOUT)
+		ok = false;
+
+	if (!ok)
+		cli_free(cli);
 }
 
 static void tcp_srv_event(int fd, short events, void *userdata)
 {
 	struct server_socket *sock = userdata;
+	struct sockaddr_in6 addr;
 	socklen_t addrlen = sizeof(struct sockaddr_in6);
-	struct client *cli;
+	struct client *cli = NULL;
 	char host[64];
 	char port[16];
-	int on = 1;
-
-	cli = cli_alloc();
-	if (!cli) {
-		applog(LOG_ERR, "out of memory");
-		server_running = false;
-		event_loopbreak();
-		return;
-	}
+	int cli_fd, on = 1;
+	struct timeval timeout = { CLI_RD_TIMEOUT, 0 };
 
 	/* receive TCP connection from kernel */
-	cli->fd = accept(sock->fd, (struct sockaddr *) &cli->addr, &addrlen);
-	if (cli->fd < 0) {
+	cli_fd = accept(sock->fd, (struct sockaddr *) &addr, &addrlen);
+	if (cli_fd < 0) {
 		syslogerr("tcp accept");
 		goto err_out;
 	}
 
 	srv.stats.tcp_accept++;
+
+	cli = cli_alloc(cli_fd, &addr, addrlen);
+	if (!cli) {
+		applog(LOG_ERR, "OOM");
+		close(cli_fd);
+		return;
+	}
 
 	/* mark non-blocking, for upcoming poll use */
 	if (fsetflags("tcp client", cli->fd, O_NONBLOCK) < 0)
@@ -213,11 +473,15 @@ static void tcp_srv_event(int fd, short events, void *userdata)
 	strcpy(cli->addr_host, host);
 	strcpy(cli->addr_port, port);
 
-	if (event_add(&cli->ev, NULL) < 0) {
-		applog(LOG_ERR, "unable to ready srv fd for polling");
+	if (event_add(&cli->ev, &timeout) < 0) {
+		applog(LOG_ERR, "unable to ready cli fd for polling");
 		goto err_out_fd;
 	}
 	cli->ev_mask = EV_READ;
+
+	if (!tcp_read(&cli->rst, &cli->ubbp, sizeof(cli->ubbp),
+		      cli_read_hdr, NULL))
+		goto err_out_fd;
 
 	return;
 

@@ -32,7 +32,8 @@ esac
 AC_CHECK_LIB(event, event_base_new, EVENT_LIBS=-levent,
   [AC_MSG_ERROR([Missing required libevent])])
 AC_CHECK_LIB(pthread, pthread_create, PTHREAD_LIBS=-lpthread)
-
+AC_CHECK_LIB(z, uncompress, Z_LIBS=-lz,
+  [AC_MSG_ERROR([Missing required zlib])])
 AC_CHECK_LIB(jansson, json_loads, JANSSON_LIBS=-ljansson,
   [AC_MSG_ERROR([Missing required jansson library])])
 
@@ -42,6 +43,7 @@ AC_SUBST(JANSSON_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(PTHREAD_FLAGS)
 AC_SUBST(PTHREAD_LIBS)
+AC_SUBST(Z_LIBS)
 
 AC_CONFIG_FILES([
 	Makefile
