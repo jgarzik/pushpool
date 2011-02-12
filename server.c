@@ -20,7 +20,6 @@
 #define _GNU_SOURCE
 #include "autotools-config.h"
 
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -32,7 +31,6 @@
 #include <signal.h>
 #include <syslog.h>
 #include <fcntl.h>
-#include <jansson.h>
 #include <string.h>
 #include <zlib.h>
 #include <netdb.h>
@@ -232,14 +230,17 @@ static json_t *cjson_decode(void *buf, size_t buflen)
 	if (buflen < 6)
 		return NULL;
 
+	/* look at first 32 bits of buffer, which contains uncompressed len */
 	unc_len = le32toh(*((uint32_t *)buf));
 	if (unc_len > CLI_MAX_MSG)
 		return NULL;
 
+	/* alloc buffer for uncompressed data */
 	obj_unc = malloc(unc_len + 1);
 	if (!obj_unc)
 		return NULL;
 
+	/* decompress buffer (excluding first 32 bits) */
 	comp_p = buf + 4;
 	if (uncompress(obj_unc, &dest_len, comp_p, buflen - 4) != Z_OK)
 		goto out;
@@ -247,12 +248,74 @@ static json_t *cjson_decode(void *buf, size_t buflen)
 		goto out;
 	memcpy(obj_unc + unc_len, &zero, 1);	/* null terminate */
 
+	/* attempt JSON decode of buffer */
 	obj = json_loads(obj_unc, &err);
 
 out:
 	free(obj_unc);
 
 	return obj;
+}
+
+bool cjson_encode(unsigned char op, json_t *obj,
+		  void **buf_out, size_t *buflen_out)
+{
+	char *obj_unc = NULL;
+	void *obj_comp, *raw_msg = NULL;
+	uint32_t *obj_clen;
+	struct ubbp_header *msg_hdr;
+	size_t unc_len, payload_len;
+	unsigned long comp_len;
+
+	*buf_out = NULL;
+	*buflen_out = 0;
+
+	/* encode JSON object to flat string */
+	obj_unc = json_dumps(obj, JSON_COMPACT | JSON_SORT_KEYS);
+	if (!obj_unc)
+		return false;
+	unc_len = strlen(obj_unc);
+
+	/* create buffer for entire msg (header + contents), assuming
+	 * a worst case where compressed data may be slightly larger than
+	 * input data
+	 */
+	raw_msg = calloc(1, unc_len + 64);
+	if (!raw_msg)
+		goto err_out;
+
+	/* get ptr to compressed-length value, which follows header */
+	obj_clen = raw_msg + sizeof(struct ubbp_header);
+
+	/* get ptr to compressed data area, which follows hdr & compr. len */
+	obj_comp = raw_msg + sizeof(struct ubbp_header) + sizeof(uint32_t);
+
+	/* compress data */
+	comp_len = unc_len + 64 -
+		(sizeof(struct ubbp_header) + sizeof(uint32_t));
+	if (compress2(obj_comp, &comp_len,
+		      (Bytef *) obj_unc, unc_len, 9) != Z_OK)
+		goto err_out;
+
+	/* fill in UBBP message header */
+	msg_hdr = raw_msg;
+	memcpy(msg_hdr->magic, PUSHPOOL_UBBP_MAGIC, 4);
+	payload_len = sizeof(uint32_t) + comp_len;
+	msg_hdr->op_size = htole32(UBBP_OP_SIZE(op, payload_len));
+
+	/* fill in compressed length */
+	*obj_clen = htole32(comp_len);
+
+	/* return entire message */
+	*buf_out = raw_msg;
+	*buflen_out = sizeof(struct ubbp_header) + payload_len;
+
+	return true;
+
+err_out:
+	free(obj_unc);
+	free(raw_msg);
+	return false;
 }
 
 static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
@@ -292,30 +355,6 @@ static void cli_free(struct client *cli)
 	
 	memset(cli, 0, sizeof(*cli));	/* poison */
 	free(cli);
-}
-
-static bool cli_op_login(struct client *cli, json_t *obj)
-{
-	/* FIXME */
-	return false;
-}
-
-static bool cli_op_config(struct client *cli, json_t *obj)
-{
-	/* FIXME */
-	return false;
-}
-
-static bool cli_op_getwork(struct client *cli)
-{
-	/* FIXME */
-	return false;
-}
-
-static bool cli_op_solution(struct client *cli)
-{
-	/* FIXME */
-	return false;
 }
 
 static bool cli_msg(struct client *cli)

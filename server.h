@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <event.h>
 #include <netinet/in.h>
+#include <jansson.h>
 #include "elist.h"
 #include "ubbp.h"
 
@@ -95,9 +96,17 @@ struct server {
 /* config.c */
 extern void read_config(void);
 
+/* msg.c */
+extern bool cli_op_login(struct client *cli, json_t *obj);
+extern bool cli_op_config(struct client *cli, json_t *obj);
+extern bool cli_op_getwork(struct client *cli);
+extern bool cli_op_solution(struct client *cli);
+
 /* server.c */
 extern bool use_syslog;
 extern struct server srv;
+extern bool cjson_encode(unsigned char op, json_t *obj,
+		  void **buf_out, size_t *buflen_out);
 
 /* util.c */
 extern void applog(int prio, const char *fmt, ...);

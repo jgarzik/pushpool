@@ -47,6 +47,7 @@ struct ubbp_header {
 
 #define UBBP_OP(op_size) ((op_size) & 0xff)
 #define UBBP_SIZE(op_size) ((op_size) >> 8)
+#define UBBP_OP_SIZE(op, size) (((op) & 0xff) | ((size) << 8))
 
 #endif /* __UBBP_H__ */
 
