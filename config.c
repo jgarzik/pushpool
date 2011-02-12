@@ -17,6 +17,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include "autotools-config.h"
 
 #include <stdlib.h>
@@ -72,7 +73,7 @@ void read_config(void)
 {
 	json_t *jcfg;
 	json_error_t err;
-	const char *tmp_str;
+	const char *tmp_str, *rpcuser, *rpcpass;
 
 	jcfg = json_load_file(srv.config, &err);
 	if (!jcfg) {
@@ -99,6 +100,24 @@ void read_config(void)
 	tmp_str = json_string_value(json_object_get(jcfg, "forcehost"));
 	if (tmp_str)
 		srv.ourhost = strdup(tmp_str);
+
+	tmp_str = json_string_value(json_object_get(jcfg, "rpc_url"));
+	if (!tmp_str) {
+		applog(LOG_ERR, "error: no RPC URL specified");
+		exit(1);
+	}
+	srv.rpc_url = strdup(tmp_str);
+
+	rpcuser = json_string_value(json_object_get(jcfg, "rpc_user"));
+	rpcpass = json_string_value(json_object_get(jcfg, "rpc_pass"));
+	if (!rpcuser || !rpcpass) {
+		applog(LOG_ERR, "error: no RPC user and/or password specified");
+		exit(1);
+	}
+	if (asprintf(&srv.rpc_userpass, "%s:%s", rpcuser, rpcpass) < 0) {
+		applog(LOG_ERR, "OOM");
+		exit(1);
+	}
 
 	if (!srv.pid_file) {
 		if (!(srv.pid_file = strdup("/var/run/pushpoold.pid"))) {

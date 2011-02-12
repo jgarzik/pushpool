@@ -39,6 +39,9 @@ AC_CHECK_LIB(jansson, json_loads, JANSSON_LIBS=-ljansson,
 
 PKG_PROG_PKG_CONFIG()
 
+LIBCURL_CHECK_CONFIG(, 7.10.1, ,
+  [AC_MSG_ERROR([Missing required libcurl >= 7.10.1])])
+
 AC_SUBST(JANSSON_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(PTHREAD_FLAGS)

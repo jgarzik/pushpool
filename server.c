@@ -39,8 +39,6 @@
 #include <argp.h>
 #include "server.h"
 
-#define PUSHPOOL_UBBP_MAGIC "PMIN"
-
 const char *argp_program_version = PACKAGE_VERSION;
 
 enum {
@@ -257,24 +255,18 @@ out:
 	return obj;
 }
 
-bool cjson_encode(unsigned char op, json_t *obj,
+bool cjson_encode(unsigned char op, const char *obj_unc,
 		  void **buf_out, size_t *buflen_out)
 {
-	char *obj_unc = NULL;
 	void *obj_comp, *raw_msg = NULL;
 	uint32_t *obj_clen;
 	struct ubbp_header *msg_hdr;
-	size_t unc_len, payload_len;
 	unsigned long comp_len;
+	size_t payload_len;
+	size_t unc_len = strlen(obj_unc);
 
 	*buf_out = NULL;
 	*buflen_out = 0;
-
-	/* encode JSON object to flat string */
-	obj_unc = json_dumps(obj, JSON_COMPACT | JSON_SORT_KEYS);
-	if (!obj_unc)
-		return false;
-	unc_len = strlen(obj_unc);
 
 	/* create buffer for entire msg (header + contents), assuming
 	 * a worst case where compressed data may be slightly larger than
@@ -313,9 +305,30 @@ bool cjson_encode(unsigned char op, json_t *obj,
 	return true;
 
 err_out:
-	free(obj_unc);
 	free(raw_msg);
 	return false;
+}
+
+bool cjson_encode_obj(unsigned char op, const json_t *obj,
+		      void **buf_out, size_t *buflen_out)
+{
+	char *obj_unc;
+	bool rc;
+
+	*buf_out = NULL;
+	*buflen_out = 0;
+
+	/* encode JSON object to flat string */
+	obj_unc = json_dumps(obj, JSON_COMPACT | JSON_SORT_KEYS);
+	if (!obj_unc)
+		return false;
+
+	/* build message, with compressed JSON payload */
+	rc = cjson_encode(op, obj_unc, buf_out, buflen_out);
+
+	free(obj_unc);
+
+	return rc;
 }
 
 static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
@@ -357,6 +370,73 @@ static void cli_free(struct client *cli)
 	free(cli);
 }
 
+bool cli_send_msg(struct client *cli, const void *msg, size_t msg_len)
+{
+	ssize_t wrc;
+
+	/* send packet to client.  fail on all cases where
+	 * message is not transferred entirely into the
+	 * socket buffer on this write(2) call
+	 */
+	wrc = write(cli->fd, msg, msg_len);
+
+	return (wrc == msg_len);
+}
+
+bool cli_send_hdronly(struct client *cli, unsigned char op)
+{
+	struct ubbp_header hdr;
+
+	memcpy(&hdr.magic, PUSHPOOL_UBBP_MAGIC, 4);
+	hdr.op_size = htole32(UBBP_OP_SIZE(op, 0));
+
+	return cli_send_msg(cli, &hdr, sizeof(hdr));
+}
+
+bool cli_send_obj(struct client *cli, unsigned char op, const json_t *obj)
+{
+	void *raw_msg = NULL;
+	size_t msg_len;
+	bool rc = false;
+
+	/* create compressed message packet */
+	if (!cjson_encode_obj(op, obj, &raw_msg, &msg_len))
+		goto out;
+
+	rc = cli_send_msg(cli, raw_msg, msg_len);
+
+out:
+	free(raw_msg);
+	return rc;
+}
+
+bool cli_send_err(struct client *cli, unsigned char op,
+		  int err_code, const char *err_msg)
+{
+	char *s = NULL;
+	void *raw_msg = NULL;
+	size_t msg_len;
+	bool rc = false;
+
+	/* build JSON error string, strangely similar to JSON-RPC */
+	if (asprintf(&s, "{ \"error\" : { \"code\":%d, \"message\":\"%s\"}}",
+		     err_code, err_msg) < 0) {
+		applog(LOG_ERR, "OOM");
+		return false;
+	}
+
+	/* create compressed message packet */
+	if (!cjson_encode(op, s, &raw_msg, &msg_len))
+		goto out;
+
+	rc = cli_send_msg(cli, raw_msg, msg_len);
+
+out:
+	free(raw_msg);
+	free(s);
+	return rc;
+}
+
 static bool cli_msg(struct client *cli)
 {
 	uint32_t op = UBBP_OP(cli->ubbp.op_size);
@@ -385,7 +465,9 @@ static bool cli_msg(struct client *cli)
 	/* message processing, determined by opcode */
 	switch (op) {
 	case BC_OP_NOP:
-		rc = true;
+		if (size > 0)
+			break;
+		rc = cli_send_hdronly(cli, BC_OP_NOP);
 		break;
 	case BC_OP_LOGIN:
 		rc = cli_op_login(cli, obj);
@@ -393,13 +475,13 @@ static bool cli_msg(struct client *cli)
 	case BC_OP_CONFIG:
 		rc = cli_op_config(cli, obj);
 		break;
-	case BC_OP_GETWORK:
+	case BC_OP_WORK_GET:
 		if (size > 0)
 			break;
-		rc = cli_op_getwork(cli);
+		rc = cli_op_work_get(cli, size);
 		break;
-	case BC_OP_SOLUTION:
-		rc = cli_op_solution(cli);
+	case BC_OP_WORK_SUBMIT:
+		rc = cli_op_work_submit(cli, size);
 		break;
 
 	default:
@@ -821,6 +903,12 @@ int main (int argc, char *argv[])
 	signal(SIGINT, term_signal);
 	signal(SIGTERM, term_signal);
 	signal(SIGUSR1, stats_signal);
+
+	srv.curl = curl_easy_init();
+	if (!srv.curl) {
+		applog(LOG_ERR, "CURL init failed");
+		goto err_out;
+	}
 
 	/* set up server networking */
 	list_for_each(tmpl, &srv.listeners) {

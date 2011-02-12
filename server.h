@@ -5,22 +5,37 @@
 #include <event.h>
 #include <netinet/in.h>
 #include <jansson.h>
+#include <curl/curl.h>
 #include "elist.h"
 #include "ubbp.h"
 
 #define PROGRAM_NAME "pushpoold"
+
+#define PUSHPOOL_UBBP_MAGIC "PMIN"
 
 enum {
 	BC_OP_NOP		= 0,		/* no-op (cli or srv) */
 
 	BC_OP_LOGIN		= 1,		/* login (cli) */
 	BC_OP_CONFIG		= 2,		/* config (cli) */
-	BC_OP_GETWORK		= 3,		/* getwork (cli) */
-	BC_OP_SOLUTION		= 4,		/* work solution (cli) */
+	BC_OP_WORK_GET		= 3,		/* getwork (cli) */
+	BC_OP_WORK_SUBMIT	= 4,		/* work solution (cli) */
 
-	BC_OP_LOGIN_RESP	= 100,		/* login resp (srv) */
-	BC_OP_CONFIG_RESP	= 101,		/* config resp (srv) */
-	BC_OP_WORK		= 102,		/* work unit (srv) */
+	BC_OP_RESP_OK		= 100,		/* general success resp (srv) */
+	BC_OP_RESP_ERR		= 101,		/* general failure resp (srv) */
+	BC_OP_LOGIN_RESP	= 102,		/* login resp (srv) */
+	BC_OP_CONFIG_RESP	= 103,		/* config resp (srv) */
+	BC_OP_WORK		= 104,		/* work unit (srv) */
+};
+
+enum {
+	BC_ERR_NONE		= 0,		/* no error (success) */
+	BC_ERR_INVALID		= 1,		/* invalid parameter */
+	BC_ERR_AUTH		= 2,		/* invalid user or pass */
+	BC_ERR_CONFIG		= 3,		/* invalid configuration */
+	BC_ERR_RPC		= 4,		/* upstream RPC problem */
+	BC_ERR_WORK_REJECT	= 5,		/* work submit rejected upstrm*/
+	BC_ERR_INTERNAL		= 6,		/* internal server err */
 };
 
 struct tcp_read {
@@ -85,7 +100,12 @@ struct server {
 
 	struct event_base	*evbase_main;
 
+	CURL			*curl;
+
 	char			*ourhost;
+
+	char			*rpc_url;
+	char			*rpc_userpass;
 
 	struct list_head	listeners;
 	struct list_head	sockets;	/* points into listeners */
@@ -97,21 +117,32 @@ struct server {
 extern void read_config(void);
 
 /* msg.c */
-extern bool cli_op_login(struct client *cli, json_t *obj);
-extern bool cli_op_config(struct client *cli, json_t *obj);
-extern bool cli_op_getwork(struct client *cli);
-extern bool cli_op_solution(struct client *cli);
+extern bool cli_op_login(struct client *cli, const json_t *obj);
+extern bool cli_op_config(struct client *cli, const json_t *obj);
+extern bool cli_op_work_get(struct client *cli, unsigned int msgsz);
+extern bool cli_op_work_submit(struct client *cli, unsigned int msgsz);
 
 /* server.c */
+extern int debugging;
 extern bool use_syslog;
 extern struct server srv;
-extern bool cjson_encode(unsigned char op, json_t *obj,
-		  void **buf_out, size_t *buflen_out);
+extern bool cjson_encode(unsigned char op, const char *obj_unc,
+		  void **msg_out, size_t *msglen_out);
+extern bool cjson_encode_obj(unsigned char op, const json_t *obj,
+		  void **msg_out, size_t *msglen_out);
+extern bool cli_send_msg(struct client *cli, const void *msg, size_t msg_len);
+extern bool cli_send_hdronly(struct client *cli, unsigned char op);
+extern bool cli_send_obj(struct client *cli, unsigned char op, const json_t *obj);
+extern bool cli_send_err(struct client *cli, unsigned char op,
+		  int err_code, const char *err_msg);
 
 /* util.c */
 extern void applog(int prio, const char *fmt, ...);
 extern int write_pid_file(const char *pid_fn);
 extern void syslogerr(const char *prefix);
 extern int fsetflags(const char *prefix, int fd, int or_flags);
+extern json_t *json_rpc_call(CURL *curl, const char *url,
+		      const char *userpass, const char *rpc_req);
+extern char *bin2hex(unsigned char *p, size_t len);
 
 #endif /* __SERVER_H__ */
