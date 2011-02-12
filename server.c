@@ -98,8 +98,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 			fprintf(stderr, "invalid debug level: '%s'\n", arg);
 			argp_usage(state);
 		}
-		if (v >= 1)
-			debugging = 1;
+		debugging = v;
 		break;
 	case 'E':
 		use_syslog = false;
