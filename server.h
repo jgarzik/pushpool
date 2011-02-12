@@ -8,42 +8,9 @@
 #include <curl/curl.h>
 #include "elist.h"
 #include "ubbp.h"
+#include "protocol.h"
 
 #define PROGRAM_NAME "pushpoold"
-
-#define PUSHPOOL_UBBP_MAGIC "PMIN"
-
-struct bc_work {
-	unsigned char	data[128];
-	unsigned char	hash1[64];
-	unsigned char	midstate[32];
-	unsigned char	target[32];
-};
-
-enum {
-	BC_OP_NOP		= 0,		/* no-op (cli or srv) */
-
-	BC_OP_LOGIN		= 1,		/* login (cli) */
-	BC_OP_CONFIG		= 2,		/* config (cli) */
-	BC_OP_WORK_GET		= 3,		/* getwork (cli) */
-	BC_OP_WORK_SUBMIT	= 4,		/* work solution (cli) */
-
-	BC_OP_RESP_OK		= 100,		/* general success resp (srv) */
-	BC_OP_RESP_ERR		= 101,		/* general failure resp (srv) */
-	BC_OP_LOGIN_RESP	= 102,		/* login resp (srv) */
-	BC_OP_CONFIG_RESP	= 103,		/* config resp (srv) */
-	BC_OP_WORK		= 104,		/* work unit (srv) */
-};
-
-enum {
-	BC_ERR_NONE		= 0,		/* no error (success) */
-	BC_ERR_INVALID		= 1,		/* invalid parameter */
-	BC_ERR_AUTH		= 2,		/* invalid user or pass */
-	BC_ERR_CONFIG		= 3,		/* invalid configuration */
-	BC_ERR_RPC		= 4,		/* upstream RPC problem */
-	BC_ERR_WORK_REJECT	= 5,		/* work submit rejected upstrm*/
-	BC_ERR_INTERNAL		= 6,		/* internal server err */
-};
 
 struct tcp_read {
 	void			*buf;		/* ptr to storage buffer */

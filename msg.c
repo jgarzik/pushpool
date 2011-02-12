@@ -119,7 +119,7 @@ bool cli_op_config(struct client *cli, const json_t *cfg)
 
 	/* apply requested configuration options */
 	if (json_is_object(cfg) && !cli_config(cli, cfg)) {
-		cli_send_err(cli, BC_OP_LOGIN_RESP, BC_ERR_CONFIG,
+		cli_send_err(cli, BC_OP_CONFIG_RESP, BC_ERR_CONFIG,
 			     bc_err_str[BC_ERR_CONFIG]);
 		return false;
 	}
@@ -287,7 +287,7 @@ bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 	int err_code = BC_ERR_INVALID;
 	bool json_res = false;
 
-	if (msgsz != 80)
+	if (msgsz != 128)
 		goto err_out;
 	if (!submit_work(srv.curl, cli->msg, &json_res)) {
 		err_code = BC_ERR_RPC;
