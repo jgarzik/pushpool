@@ -476,8 +476,6 @@ static bool cli_msg(struct client *cli)
 		rc = cli_op_config(cli, obj);
 		break;
 	case BC_OP_WORK_GET:
-		if (size > 0)
-			break;
 		rc = cli_op_work_get(cli, size);
 		break;
 	case BC_OP_WORK_SUBMIT:

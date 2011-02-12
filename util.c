@@ -325,3 +325,34 @@ char *bin2hex(unsigned char *p, size_t len)
 	return s;
 }
 
+bool hex2bin(unsigned char *p, const char *hexstr, size_t len)
+{
+	while (*hexstr && len) {
+		char hex_byte[3];
+		unsigned int v;
+
+		if (!hexstr[1]) {
+			fprintf(stderr, "hex2bin str truncated\n");
+			return false;
+		}
+
+		hex_byte[0] = hexstr[0];
+		hex_byte[1] = hexstr[1];
+		hex_byte[2] = 0;
+
+		if (sscanf(hex_byte, "%x", &v) != 1) {
+			fprintf(stderr, "hex2bin sscanf '%s' failed\n",
+				hex_byte);
+			return false;
+		}
+
+		*p = (unsigned char) v;
+
+		p++;
+		hexstr += 2;
+		len--;
+	}
+
+	return (len == 0 && *hexstr == 0) ? true : false;
+}
+

@@ -63,7 +63,7 @@ bool cli_op_login(struct client *cli, const json_t *obj)
 	int version, err_code = BC_ERR_INTERNAL;
 	bool rc;
 
-	/* verify protocol version */
+	/* verify client protocol version */
 	version = json_integer_value(json_object_get(obj, "version"));
 	if (version < 1 || version > 1) {
 		err_code = BC_ERR_INVALID;
@@ -137,9 +137,112 @@ bool cli_op_config(struct client *cli, const json_t *cfg)
 	return rc;
 }
 
+static bool jobj_binary(const json_t *obj, const char *key,
+			void *buf, size_t buflen)
+{
+	const char *hexstr;
+	json_t *tmp;
+
+	tmp = json_object_get(obj, key);
+	if (!tmp) {
+		return false;
+	}
+	hexstr = json_string_value(tmp);
+	if (!hexstr) {
+		return false;
+	}
+	if (!hex2bin(buf, hexstr, buflen))
+		return false;
+
+	return true;
+}
+
+static bool work_decode(const json_t *val, struct bc_work *work)
+{
+	if (!jobj_binary(val, "midstate",
+			 work->midstate, sizeof(work->midstate))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "data", work->data, sizeof(work->data))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "hash1", work->hash1, sizeof(work->hash1))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "target", work->target, sizeof(work->target))) {
+		goto err_out;
+	}
+
+	return true;
+
+err_out:
+	return false;
+}
+
+static unsigned int rpcid = 1;
+
 bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 {
-	/* FIXME */
+	json_t *val;
+	char s[128];
+	int err_code = BC_ERR_INVALID;
+	struct ubbp_header *msg_hdr;
+	struct bc_work work;
+	void *raw_msg;
+	size_t msg_len;
+	bool rc;
+
+	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
+		rpcid++);
+
+	if (msgsz > 0)
+		return false;
+
+	/* issue JSON-RPC request */
+	val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+	if (!val) {
+		err_code = BC_ERR_RPC;
+		goto err_out;
+	}
+
+	/* decode result into work state struct */
+	rc = work_decode(val, &work);
+
+	json_decref(val);
+
+	if (!rc) {
+		err_code = BC_ERR_RPC;
+		goto err_out;
+	}
+
+	/* alloc new message buffer */
+	msg_len = sizeof(struct ubbp_header) + sizeof(struct bc_work);
+
+	raw_msg = calloc(1, msg_len);
+	if (!raw_msg) {
+		err_code = BC_ERR_INTERNAL;
+		goto err_out;
+	}
+
+	/* build BC_OP_WORK message: hdr + bc_work */
+	msg_hdr = raw_msg;
+	memcpy(msg_hdr->magic, PUSHPOOL_UBBP_MAGIC, 4);
+	msg_hdr->op_size = htole32(UBBP_OP_SIZE(BC_OP_WORK,
+						sizeof(struct bc_work)));
+	memcpy(raw_msg + sizeof(struct ubbp_header),
+	       &work, sizeof(struct bc_work));
+
+	rc = cli_send_msg(cli, raw_msg, msg_len);
+
+	free(raw_msg);
+
+	return rc;
+
+err_out:
+	cli_send_err(cli, BC_OP_RESP_ERR, err_code, bc_err_str[err_code]);
 	return false;
 }
 

@@ -13,6 +13,13 @@
 
 #define PUSHPOOL_UBBP_MAGIC "PMIN"
 
+struct bc_work {
+	unsigned char	data[128];
+	unsigned char	hash1[64];
+	unsigned char	midstate[32];
+	unsigned char	target[32];
+};
+
 enum {
 	BC_OP_NOP		= 0,		/* no-op (cli or srv) */
 
@@ -144,5 +151,6 @@ extern int fsetflags(const char *prefix, int fd, int or_flags);
 extern json_t *json_rpc_call(CURL *curl, const char *url,
 		      const char *userpass, const char *rpc_req);
 extern char *bin2hex(unsigned char *p, size_t len);
+extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 
 #endif /* __SERVER_H__ */
