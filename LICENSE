@@ -1,3 +1,5 @@
-pushpool is available under the terms of the GNU Public License version 2.
+pushpool is available under the terms of the GNU Public License version 2,
+except for ubbp.h and protocol.h, which is available under the MIT/X11
+license.
 
-See COPYING for details.
+See source file headers and/or COPYING for details.
