@@ -21,6 +21,7 @@
 #include "autotools-config.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,12 +43,15 @@ void applog(int prio, const char *fmt, ...)
 	} else {
 		char *f;
 		int len;
-		int pid;
+		struct timeval tv = { };
 
-		pid = getpid() & 0xFFFFFFFF;
-		len = sizeof(PROGRAM_NAME "[0123456789]: ") + strlen(fmt) + 2;
+		gettimeofday(&tv, NULL);
+
+		len = 40 + strlen(fmt) + 2;
 		f = alloca(len);
-		sprintf(f, PROGRAM_NAME "[%u]: %s\n", pid, fmt);
+		sprintf(f, "[%llu.%llu] %s\n",
+			(unsigned long long) tv.tv_sec,
+			(unsigned long long) tv.tv_usec, fmt);
 		vfprintf(stderr, f, ap);	/* atomic write to stderr */
 	}
 	va_end(ap);
