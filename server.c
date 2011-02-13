@@ -50,10 +50,8 @@ enum {
 };
 
 static struct argp_option options[] = {
-#if 0
-	{ "config", 'C', "FILE", 0,
-	  "Read master configuration from FILE" },
-#endif
+	{ "config", 'c', "FILE", 0,
+	  "Read master configuration from FILE (default: server.json)" },
 	{ "debug", 'D', "LEVEL", 0,
 	  "Set debug output to LEVEL (0 = off, 2 = max)" },
 	{ "stderr", 'E', NULL, 0,
@@ -93,11 +91,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	int v;
 
 	switch(key) {
-#if 0
-	case 'C':
+	case 'c':
 		srv.config = arg;
 		break;
-#endif
 	case 'D':
 		v = atoi(arg);
 		if (v < 0 || v > 2) {

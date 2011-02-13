@@ -42,7 +42,7 @@ static void parse_listen(const json_t *listeners)
 		obj = json_array_get(listeners, i);
 
 		host_str = json_string_value(json_object_get(obj, "host"));
-		if (!*host_str || !strcmp(host_str, "*"))
+		if (host_str && (!*host_str || !strcmp(host_str, "*")))
 			host_str = NULL;
 
 		port = json_integer_value(json_object_get(obj, "port"));
