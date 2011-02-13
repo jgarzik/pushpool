@@ -1,5 +1,6 @@
 
 /*
+ * Copyright 2011 Jeff Garzik
  * Copyright 2009 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or modify

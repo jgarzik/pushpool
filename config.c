@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2009 Red Hat, Inc.
+ * Copyright 2011 Jeff Garzik
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,19 +35,17 @@ static void parse_listen(const json_t *listeners)
 
 	for (i = 0; i < len; i++) {
 		json_t *obj;
-		const char *host_str, *port_str;
+		const char *host_str;
 		int port;
 		struct listen_cfg *lc;
 
 		obj = json_array_get(listeners, i);
 
 		host_str = json_string_value(json_object_get(obj, "host"));
-		port_str = json_string_value(json_object_get(obj, "port"));
-		if (!port_str) {
-			applog(LOG_WARNING, "invalid listen config: port");
-			continue;
-		}
-		port = atoi(port_str);
+		if (!*host_str || !strcmp(host_str, "*"))
+			host_str = NULL;
+
+		port = json_integer_value(json_object_get(obj, "port"));
 		if (port < 1 || port > 65535) {
 			applog(LOG_WARNING, "invalid listen config: port");
 			continue;
