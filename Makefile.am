@@ -1,4 +1,6 @@
 
+EXTRA_DIST	= example-cfg.json
+
 INCLUDES	= $(PTHREAD_FLAGS) -fno-strict-aliasing
 
 bin_PROGRAMS	= pushpoold

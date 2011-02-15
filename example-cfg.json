@@ -1,0 +1,11 @@
+{
+	"listen" : [
+		{ "port" : 8335 }
+	],
+
+	"pid" : "/var/lib/pool/pushpoold.pid",
+
+	"rpc_url" : "http://127.0.0.1:8332/",
+	"rpc_user" : "myusername",
+	"rpc_pass" : "mypassword"
+}

@@ -1,1 +1,10 @@
 bitcoin push-mining pool server.
+
+Dependencies:
+	libevent
+	pthreads
+	zlib
+	jansson
+	OpenSSL's libcrypto
+	libcurl
+
