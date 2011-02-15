@@ -26,6 +26,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <jansson.h>
+#include <openssl/sha.h>
+#include <syslog.h>
 #include "server.h"
 
 static const char *bc_err_str[] = {
@@ -38,16 +40,14 @@ static const char *bc_err_str[] = {
 	[BC_ERR_INTERNAL] = "internal server err",
 };
 
-static bool checkauth(const char *user, const char *pass)
+static char *pwdb_lookup(const char *user)
 {
-	if (!user || !pass)
-		return false;
+	if (!user)
+		return NULL;
+	if (strcmp(user, "testuser"))
+		return NULL;
 	
-	if (!strcmp(user, "testuser") &&
-	    !strcmp(pass, "testpass"))
-		return true;
-	
-	return false;
+	return strdup("testpass");
 }
 
 static bool cli_config(struct client *cli, const json_t *cfg)
@@ -56,12 +56,15 @@ static bool cli_config(struct client *cli, const json_t *cfg)
 	return false;
 }
 	
-bool cli_op_login(struct client *cli, const json_t *obj)
+bool cli_op_login(struct client *cli, const json_t *obj, unsigned int msgsz)
 {
-	const char *user, *pass;
+	const char *user;
+	char *pass;
 	json_t *cfg, *resobj, *res_cfgobj;
 	int version, err_code = BC_ERR_INTERNAL;
 	bool rc;
+	SHA256_CTX ctx;
+	unsigned char md[SHA256_DIGEST_LENGTH];
 
 	/* verify client protocol version */
 	version = json_integer_value(json_object_get(obj, "version"));
@@ -70,11 +73,28 @@ bool cli_op_login(struct client *cli, const json_t *obj)
 		goto err_out;
 	}
 
+	/* read username, and retrieve associated password from database */
 	user = json_string_value(json_object_get(obj, "user"));
-	pass = json_string_value(json_object_get(obj, "pass"));
 
-	/* validate username / password */
-	if (!checkauth(user, pass)) {
+	pass = pwdb_lookup(user);
+	if (!pass) {
+		applog(LOG_WARNING, "unknown user %s", user);
+		err_code = BC_ERR_AUTH;
+		goto err_out;
+	}
+
+	/* calculate sha256(login JSON packet + user password) */
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, cli->msg, msgsz - SHA256_DIGEST_LENGTH);
+	SHA256_Update(&ctx, pass, strlen(pass));
+	SHA256_Final(md, &ctx);
+
+	free(pass);
+
+	/* compare sha256 sum with LOGIN msg trailer */
+	if (memcmp(md, cli->msg + (msgsz - SHA256_DIGEST_LENGTH),
+		   SHA256_DIGEST_LENGTH)) {
+		applog(LOG_WARNING, "invalid password for user %s", user);
 		err_code = BC_ERR_AUTH;
 		goto err_out;
 	}
@@ -102,6 +122,9 @@ bool cli_op_login(struct client *cli, const json_t *obj)
 	rc = cli_send_obj(cli, BC_OP_LOGIN_RESP, resobj);
 
 	json_decref(resobj);
+
+	if (rc)
+		cli->logged_in = true;
 
 	return rc;
 

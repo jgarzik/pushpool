@@ -55,7 +55,7 @@ enum {
 	BC_OP_NOP		= 0,	/* HDR; no-op */
 
 	/* client-originated messages */
-	BC_OP_LOGIN		= 1,	/* JSON; login */
+	BC_OP_LOGIN		= 1,	/* JSON + sha256 digest trailer; login*/
 					/* Ret: BC_OP_LOGIN_RESP */
 
 	BC_OP_CONFIG		= 2,	/* JSON; config */

@@ -110,7 +110,8 @@ struct server {
 extern void read_config(void);
 
 /* msg.c */
-extern bool cli_op_login(struct client *cli, const json_t *obj);
+extern bool cli_op_login(struct client *cli, const json_t *obj,
+			 unsigned int msgsz);
 extern bool cli_op_config(struct client *cli, const json_t *obj);
 extern bool cli_op_work_get(struct client *cli, unsigned int msgsz);
 extern bool cli_op_work_submit(struct client *cli, unsigned int msgsz);

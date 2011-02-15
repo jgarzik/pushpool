@@ -37,6 +37,7 @@
 #include <netdb.h>
 #include <stdarg.h>
 #include <endian.h>
+#include <openssl/sha.h>
 #include <argp.h>
 #include "server.h"
 
@@ -444,15 +445,29 @@ static bool cli_msg(struct client *cli)
 	/* LOGIN must always be first msg from client */
 	if (!cli->logged_in && (op != BC_OP_LOGIN))
 		return false;
+	else if (cli->logged_in && (op == BC_OP_LOGIN))
+		return false;
 
 	/* decode JSON messages, for opcodes that require it */
 	switch (op) {
 	case BC_OP_LOGIN:
-	case BC_OP_CONFIG:
-		obj = cjson_decode(cli->msg, size);
+	case BC_OP_CONFIG: {
+		uint32_t cjson_len = size;
+
+		/* LOGIN is special; it has a sha256 digest
+		 * following the compressed JSON bytes
+		 */
+		if (op == BC_OP_LOGIN) {
+			if (size <= SHA256_DIGEST_LENGTH)
+				return false;
+			cjson_len -= SHA256_DIGEST_LENGTH;
+		}
+
+		obj = cjson_decode(cli->msg, cjson_len);
 		if (!json_is_object(obj))
 			goto out;
 		break;
+	}
 
 	default:
 		/* do nothing */
@@ -467,7 +482,7 @@ static bool cli_msg(struct client *cli)
 		rc = cli_send_hdronly(cli, BC_OP_NOP);
 		break;
 	case BC_OP_LOGIN:
-		rc = cli_op_login(cli, obj);
+		rc = cli_op_login(cli, obj, size);
 		break;
 	case BC_OP_CONFIG:
 		rc = cli_op_config(cli, obj);
