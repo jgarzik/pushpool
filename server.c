@@ -539,11 +539,73 @@ err_out:
 	cli_free(cli);
 }
 
+static bool valid_auth_hdr(const char *hdr)
+{
+	char *t_type = NULL;
+	char *t_b64 = NULL;
+	char *t_userpass = NULL, *colon, *user, *pass;
+	char *pass_db = NULL;
+	bool rc = false;
+	size_t hdrlen = strlen(hdr);
+	size_t bin_len = 0;
+	void *bin = NULL;
+
+	t_type = calloc(1, hdrlen + 1);
+	t_b64 = calloc(1, hdrlen + 1);
+	t_userpass = calloc(1, hdrlen + 1);
+	if (!t_type || !t_b64 || !t_userpass)
+		goto out;
+	if (sscanf(hdr, "%s %s", t_type, t_b64) != 2)
+		goto out;
+
+	/* auth type Basic */
+	if (strcasecmp(t_type, "basic"))
+		goto out;
+
+	/* decode base64 token */
+	bin = g_base64_decode(t_b64, &bin_len);
+	if (!bin)
+		goto out;
+	if (bin_len > hdrlen)		/* impossible */
+		goto out;
+	memcpy(t_userpass, bin, bin_len);
+
+	/* split user:pass */
+	colon = strchr(t_userpass, ':');
+	if (!colon)
+		goto out;
+	*colon = 0;
+	user = t_userpass;
+	pass = colon + 1;
+
+	/* password database authentication check */
+	pass_db = pwdb_lookup(user);
+	if (!pass_db || strcmp(pass, pass_db))
+		goto out;
+
+	rc = true;
+
+out:
+	free(pass_db);
+	free(bin);
+	free(t_type);
+	free(t_b64);
+	free(t_userpass);
+	return rc;
+}
+
 static void http_srv_event(struct evhttp_request *req, void *arg)
 {
 	/* struct server_socket *sock = arg; */
 	const char *clen_str, *auth;
+	char *body_str;
+	void *body, *reply = NULL;
 	int clen = 0;
+	unsigned int reply_len = 0;
+	json_t *jreq;
+	json_error_t jerr;
+	bool rc;
+	struct evbuffer *evbuf;
 
 	clen_str = evhttp_find_header(req->input_headers, "Content-Length");
 	if (clen_str)
@@ -554,8 +616,48 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth)
 		goto err_out_bad_req;
+	if (!valid_auth_hdr(auth))
+		goto err_out_bad_req;
 
-	evhttp_send_reply(req, HTTP_OK, "ok", NULL);	/* FIXME!!! */
+	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
+		goto err_out_bad_req;
+	body = EVBUFFER_DATA(req->input_buffer);
+	body_str = strndup(body, clen);
+	if (!body_str)
+		goto err_out_bad_req;
+
+	jreq = json_loads(body_str, &jerr);
+
+	free(body_str);
+
+	if (!jreq)
+		goto err_out_bad_req;
+
+	rc = msg_json_rpc(req, jreq, &reply, &reply_len);
+
+	json_decref(jreq);
+
+	if (!rc)
+		goto err_out_bad_req;
+
+	evbuf = evbuffer_new();
+	if (!evbuf) {
+		free(reply);
+		goto err_out_bad_req;
+	}
+	if (evbuffer_add(evbuf, reply, reply_len)) {
+		evbuffer_free(evbuf);
+		free(reply);
+		goto err_out_bad_req;
+	}
+
+	free(reply);
+
+	evhttp_add_header(req->output_headers,
+			  "Content-Type", "application/json");
+	evhttp_send_reply(req, HTTP_OK, "ok", evbuf);
+
+	evbuffer_free(evbuf);
 
 	return;
 

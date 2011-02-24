@@ -108,11 +108,14 @@ struct server {
 extern void read_config(void);
 
 /* msg.c */
+extern char *pwdb_lookup(const char *user);
 extern bool cli_op_login(struct client *cli, const json_t *obj,
 			 unsigned int msgsz);
 extern bool cli_op_config(struct client *cli, const json_t *obj);
 extern bool cli_op_work_get(struct client *cli, unsigned int msgsz);
 extern bool cli_op_work_submit(struct client *cli, unsigned int msgsz);
+extern bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
+			 void **reply, unsigned int *reply_len);
 
 /* server.c */
 extern int debugging;
@@ -137,5 +140,6 @@ extern json_t *json_rpc_call(CURL *curl, const char *url,
 		      const char *userpass, const char *rpc_req);
 extern char *bin2hex(unsigned char *p, size_t len);
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
+extern unsigned char * g_base64_decode (const char *text, size_t *out_len);
 
 #endif /* __SERVER_H__ */

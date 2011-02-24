@@ -361,3 +361,180 @@ bool hex2bin(unsigned char *p, const char *hexstr, size_t len)
 	return (len == 0 && *hexstr == 0) ? true : false;
 }
 
+/* gbase64.c - Base64 encoding/decoding
+ *
+ *  Copyright (C) 2006 Alexander Larsson <alexl@redhat.com>
+ *  Copyright (C) 2000-2003 Ximian Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ *
+ * This is based on code in camel, written by:
+ *    Michael Zucchi <notzed@ximian.com>
+ *    Jeffrey Stedfast <fejj@ximian.com>
+ */
+
+
+/**
+ * SECTION:base64
+ * @title: Base64 Encoding
+ * @short_description: encodes and decodes data in Base64 format
+ *
+ * Base64 is an encoding that allows a sequence of arbitrary bytes to be
+ * encoded as a sequence of printable ASCII characters. For the definition
+ * of Base64, see <ulink url="http://www.ietf.org/rfc/rfc1421.txt">RFC
+ * 1421</ulink> or <ulink url="http://www.ietf.org/rfc/rfc2045.txt">RFC
+ * 2045</ulink>. Base64 is most commonly used as a MIME transfer encoding
+ * for email.
+ *
+ * GLib supports incremental encoding using g_base64_encode_step() and
+ * g_base64_encode_close(). Incremental decoding can be done with
+ * g_base64_decode_step(). To encode or decode data in one go, use
+ * g_base64_encode() or g_base64_decode(). To avoid memory allocation when
+ * decoding, you can use g_base64_decode_inplace().
+ *
+ * Support for Base64 encoding has been added in GLib 2.12.
+ */
+
+static const char base64_alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static const unsigned char mime_base64_rank[256] = {
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255, 62,255,255,255, 63,
+   52, 53, 54, 55, 56, 57, 58, 59, 60, 61,255,255,255,  0,255,255,
+  255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,255,255,255,255,255,
+  255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+   41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+  255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+};
+
+/**
+ * g_base64_decode_step:
+ * @in: binary input data
+ * @len: max length of @in data to decode
+ * @out: output buffer
+ * @state: Saved state between steps, initialize to 0
+ * @save: Saved state between steps, initialize to 0
+ *
+ * Incrementally decode a sequence of binary data from its Base-64 stringified
+ * representation. By calling this function multiple times you can convert
+ * data in chunks to avoid having to have the full encoded data in memory.
+ *
+ * The output buffer must be large enough to fit all the data that will
+ * be written to it. Since base64 encodes 3 bytes in 4 chars you need
+ * at least: (@len / 4) * 3 + 3 bytes (+ 3 may be needed in case of non-zero
+ * state).
+ *
+ * Return value: The number of bytes of output that was written
+ *
+ * Since: 2.12
+ **/
+static size_t
+g_base64_decode_step (const char  *in,
+                      size_t         len,
+                      unsigned char       *out,
+                      int         *state,
+                      unsigned int        *save)
+{
+  const unsigned char *inptr;
+  unsigned char *outptr;
+  const unsigned char *inend;
+  unsigned char c, rank;
+  unsigned char last[2];
+  unsigned int v;
+  int i;
+
+  if (len <= 0)
+    return 0;
+
+  inend = (const unsigned char *)in+len;
+  outptr = out;
+
+  /* convert 4 base64 bytes to 3 normal bytes */
+  v=*save;
+  i=*state;
+  inptr = (const unsigned char *)in;
+  last[0] = last[1] = 0;
+  while (inptr < inend)
+    {
+      c = *inptr++;
+      rank = mime_base64_rank [c];
+      if (rank != 0xff)
+        {
+          last[1] = last[0];
+          last[0] = c;
+          v = (v<<6) | rank;
+          i++;
+          if (i==4)
+            {
+              *outptr++ = v>>16;
+              if (last[1] != '=')
+                *outptr++ = v>>8;
+              if (last[0] != '=')
+                *outptr++ = v;
+              i=0;
+            }
+        }
+    }
+
+  *save = v;
+  *state = i;
+
+  return outptr - out;
+}
+
+/**
+ * g_base64_decode:
+ * @text: zero-terminated string with base64 text to decode
+ * @out_len: The length of the decoded data is written here
+ *
+ * Decode a sequence of Base-64 encoded text into binary data
+ *
+ * Return value: a newly allocated buffer containing the binary data
+ *               that @text represents. The returned buffer must
+ *               be freed with g_free().
+ *
+ * Since: 2.12
+ */
+unsigned char *
+g_base64_decode (const char *text,
+                 size_t       *out_len)
+{
+  unsigned char *ret;
+  size_t input_length;
+  int state = 0;
+  unsigned int save = 0;
+
+  input_length = strlen (text);
+
+  /* We can use a smaller limit here, since we know the saved state is 0,
+     +1 used to avoid calling calloc(0), and hence retruning NULL */
+  ret = calloc(1, ((input_length / 4) * 3 + 1));
+
+  *out_len = g_base64_decode_step (text, input_length, ret, &state, &save);
+
+  return ret;
+}
+

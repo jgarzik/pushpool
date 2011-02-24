@@ -40,7 +40,7 @@ static const char *bc_err_str[] = {
 	[BC_ERR_INTERNAL] = "internal server err",
 };
 
-static char *pwdb_lookup(const char *user)
+char *pwdb_lookup(const char *user)
 {
 	if (!user)
 		return NULL;
@@ -325,6 +325,13 @@ bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 
 err_out:
 	cli_send_err(cli, BC_OP_RESP_ERR, err_code, bc_err_str[err_code]);
+	return false;
+}
+
+bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
+			 void **reply, unsigned int *reply_len)
+{
+	/* FIXME */
 	return false;
 }
 
