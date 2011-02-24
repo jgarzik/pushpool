@@ -269,19 +269,11 @@ err_out:
 	return false;
 }
 
-static bool submit_work(CURL *curl, void *data, bool *json_result)
+static bool submit_work(CURL *curl, const char *hexstr, bool *json_result)
 {
-	char *hexstr = NULL;
 	json_t *val;
-	char s[345];
+	char s[256 + 80];
 	bool rc = false;
-
-	/* build hex string */
-	hexstr = bin2hex(data, 128);
-	if (!hexstr) {
-		fprintf(stderr, "submit_work OOM\n");
-		goto out;
-	}
 
 	/* build JSON-RPC request */
 	sprintf(s,
@@ -301,7 +293,26 @@ static bool submit_work(CURL *curl, void *data, bool *json_result)
 	json_decref(val);
 
 out:
+	return rc;
+}
+
+static bool submit_bin_work(CURL *curl, void *data, bool *json_result)
+{
+	char *hexstr = NULL;
+	bool rc = false;
+
+	/* build hex string */
+	hexstr = bin2hex(data, 128);
+	if (!hexstr) {
+		fprintf(stderr, "submit_work OOM\n");
+		goto out;
+	}
+
+	rc = submit_work(curl, hexstr, json_result);
+
 	free(hexstr);
+
+out:
 	return rc;
 }
 
@@ -312,7 +323,7 @@ bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 
 	if (msgsz != 128)
 		goto err_out;
-	if (!submit_work(srv.curl, cli->msg, &json_res)) {
+	if (!submit_bin_work(srv.curl, cli->msg, &json_res)) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
 	}
@@ -328,10 +339,109 @@ err_out:
 	return false;
 }
 
+static json_t *json_rpc_errobj(int code, const char *msg)
+{
+	json_t *err;
+
+	err = json_object();
+	if (!err)
+		return NULL;
+
+	json_object_set_new(err, "code", json_integer(code));
+	json_object_set_new(err, "message", json_string(msg));
+	
+	return err;
+}
+
 bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 			 void **reply, unsigned int *reply_len)
 {
-	/* FIXME */
-	return false;
+	const char *method;
+	json_t *params, *id, *resp;
+	char *resp_str;
+	bool rc = false;
+	json_t *val;
+	char s[128];
+	unsigned int n_params;
+
+	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
+		rpcid++);
+
+	method = json_string_value(json_object_get(jreq, "method"));
+	params = json_object_get(jreq, "params");
+	n_params = json_array_size(params);
+	id = json_object_get(jreq, "id");
+
+	resp = json_object();
+	if (!resp)
+		return false;
+	json_object_set(resp, "id", id);
+
+	if (!method || strcmp(method, "getwork")) {
+		json_object_set(resp, "result", NULL);
+		json_object_set_new(resp, "error",
+				    json_rpc_errobj(-1, "method not getwork"));
+		goto out;
+	}
+
+	/* get new work */
+	if (n_params == 0) {
+		/* issue JSON-RPC request */
+		val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+		if (!val) {
+			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "error",
+				    json_rpc_errobj(-2, "upstream RPC error"));
+			goto out;
+		}
+
+		/* use work directly as 'result' in response to client */
+		json_object_set_new(resp, "result", val);
+		json_object_set(resp, "error", NULL);
+	}
+
+	/* submit solution */
+	else {
+		json_t *soln;
+		const char *soln_str;
+		size_t soln_len;
+		bool rpc_rc = false, json_result = false;
+
+		soln = json_array_get(params, 0);
+		soln_str = json_string_value(soln);
+		soln_len = strlen(soln_str);
+		if (!soln_str || soln_len < (80*2) || soln_len > (128*2)) {
+			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "error",
+				    json_rpc_errobj(-3, "invalid solution"));
+			goto out;
+		}
+
+		rpc_rc = submit_work(srv.curl, soln_str, &json_result);
+
+		if (rpc_rc) {
+			json_object_set_new(resp, "result",
+				json_result ? json_true() : json_false());
+			json_object_set(resp, "error", NULL);
+		} else {
+			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "error",
+				    json_rpc_errobj(-4, "upstream RPC error"));
+		}
+	}
+
+out:
+	resp_str = json_dumps(resp, JSON_COMPACT);
+	if (!resp_str)
+		goto out_decref;
+	
+	*reply = resp_str;
+	*reply_len = strlen(resp_str);
+
+	rc = true;
+
+out_decref:
+	json_decref(resp);
+	return rc;
 }
 
