@@ -22,29 +22,20 @@
 
 #include <stdbool.h>
 #include <event.h>
+#include <evhttp.h>
 #include <netinet/in.h>
 #include <jansson.h>
 #include <curl/curl.h>
 #include "elist.h"
 #include "ubbp.h"
 #include "protocol.h"
+#include "anet.h"
 
 #define PROGRAM_NAME "pushpoold"
 
-struct tcp_read {
-	void			*buf;		/* ptr to storage buffer */
-	unsigned int		len;		/* total storage size */
-	unsigned int		curlen;		/* amount of buffer in use */
-	bool			(*cb)(void *, void *, bool); /* callback*/
-	void			*priv;		/* app-private callback arg */
-	struct list_head	node;
-};
-
-struct tcp_read_state {
-	struct list_head	q;		/* read queue */
-	int			fd;		/* network socket fd */
-	void			*priv;		/* app-specific data */
-};
+#ifndef MIN
+#define	MIN(a,b) (((a)<(b))?(a):(b))
+#endif
 
 struct client {
 	struct sockaddr_in6	addr;		/* inet address */
@@ -74,13 +65,20 @@ struct server_socket {
 	int			fd;
 	const struct listen_cfg	*cfg;
 	struct event		ev;
+	struct evhttp		*http;
 	struct list_head	sockets_node;
+};
+
+enum listen_protocol {
+	LP_BC_BINARY,
+	LP_HTTP_JSON,
 };
 
 struct listen_cfg {
 	char			*host;
 	int			port;
 	char			*port_file;
+	enum listen_protocol	proto;
 	struct list_head	listeners_node;
 };
 

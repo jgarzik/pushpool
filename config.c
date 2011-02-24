@@ -35,7 +35,7 @@ static void parse_listen(const json_t *listeners)
 
 	for (i = 0; i < len; i++) {
 		json_t *obj;
-		const char *host_str;
+		const char *host_str, *proto_str;
 		int port;
 		struct listen_cfg *lc;
 
@@ -55,6 +55,15 @@ static void parse_listen(const json_t *listeners)
 		if (!lc) {
 			applog(LOG_ERR, "OOM");
 			exit(1);
+		}
+
+		lc->proto = LP_BC_BINARY;
+		proto_str = json_string_value(json_object_get(obj, "protocol"));
+		if (proto_str) {
+			if (!strcmp(proto_str, "http-json"))
+				lc->proto = LP_HTTP_JSON;
+			else if (!strcmp(proto_str, "binary"))
+				lc->proto = LP_BC_BINARY;
 		}
 
 		INIT_LIST_HEAD(&lc->listeners_node);

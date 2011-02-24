@@ -127,92 +127,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static void tcp_read_init(struct tcp_read_state *rst, int fd, void *priv)
-{
-	memset(rst, 0, sizeof(*rst));
-
-	rst->fd = fd;
-	rst->priv = priv;
-	INIT_LIST_HEAD(&rst->q);
-}
-
-static bool tcp_read(struct tcp_read_state *rst,
-		     void *buf, unsigned int buflen,
-		     bool (*cb)(void *rst_priv, void *priv, bool success),
-		     void *priv)
-{
-	struct tcp_read *rd;
-
-	rd = calloc(1, sizeof(*rd));
-	if (!rd) {
-		applog(LOG_ERR, "OOM");
-		return false;
-	}
-
-	rd->buf = buf;
-	rd->len = buflen;
-	rd->cb = cb;
-	rd->priv = priv;
-	INIT_LIST_HEAD(&rd->node);
-
-	list_add_tail(&rd->node, &rst->q);
-
-	return true;
-}
-
-static int tcp_read_exec(struct tcp_read_state *rst, struct tcp_read *rd)
-{
-	ssize_t rrc;
-	unsigned int to_read = rd->len - rd->curlen;
-	int ok = true;
-
-	rrc = read(rst->fd, rd->buf, to_read);
-
-	if (rrc < 0) {			/* error */
-		if (errno == EAGAIN)
-			return -1;
-
-		syslogerr("TCP read");
-		return 0;
-	}
-	if (rrc == 0)			/* end of file (net disconnect) */
-		return 0;
-
-	rd->curlen += rrc;		/* partial completion */
-	if (rd->curlen < rd->len)
-		return 1;
-
-	/* full read completion; call callback and remove from list */
-
-	if (rd->cb)
-		ok = rd->cb(rst->priv, rd->priv, true);
-
-	memset(rd, 0, sizeof(*rd));	/* poison */
-	free(rd);
-
-	return ok ? 1 : 0;
-}
-
-static bool tcp_read_runq(struct tcp_read_state *rst)
-{
-	struct tcp_read *rd, *tmp;
-	bool ok = true;
-
-	list_for_each_entry_safe(rd, tmp, &rst->q, node) {
-		int rc;
-
-		rc = tcp_read_exec(rst, rd);
-		if (rc < 0)
-			break;
-		if (rc == 0) {
-			ok = false;
-			break;
-		}
-	}
-
-	return ok;
-}
-
 static json_t *cjson_decode(void *buf, size_t buflen)
 {
 	json_t *obj = NULL;
@@ -329,22 +243,6 @@ bool cjson_encode_obj(unsigned char op, const json_t *obj,
 	return rc;
 }
 
-static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
-				socklen_t addrlen)
-{
-	struct client *cli;
-
-	cli = calloc(1, sizeof(*cli));
-	if (!cli)
-		return NULL;
-
-	cli->fd = fd;
-	memcpy(&cli->addr, addr, addrlen);
-	tcp_read_init(&cli->rst, cli->fd, cli);
-	
-	return cli;
-}
-
 static void cli_free(struct client *cli)
 {
 	if (!cli)
@@ -362,10 +260,28 @@ static void cli_free(struct client *cli)
 	if (debugging)
 		applog(LOG_DEBUG, "client %s ended", cli->addr_host);
 
+	tcp_read_free(&cli->rst);
+
 	free(cli->msg);
 	
 	memset(cli, 0, sizeof(*cli));	/* poison */
 	free(cli);
+}
+
+static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
+				socklen_t addrlen, bool have_http)
+{
+	struct client *cli;
+
+	cli = calloc(1, sizeof(*cli));
+	if (!cli)
+		return NULL;
+
+	cli->fd = fd;
+	memcpy(&cli->addr, addr, addrlen);
+	tcp_read_init(&cli->rst, cli->fd, cli);
+	
+	return cli;
 }
 
 bool cli_send_msg(struct client *cli, const void *msg, size_t msg_len)
@@ -505,7 +421,8 @@ out:
 	return rc;
 }
 
-static bool cli_read_msg(void *rst_priv, void *priv, bool success)
+static bool cli_read_msg(void *rst_priv, void *priv,
+			 unsigned int buflen, bool success)
 {
 	struct client *cli = rst_priv;
 	if (!success)
@@ -514,7 +431,8 @@ static bool cli_read_msg(void *rst_priv, void *priv, bool success)
 	return cli_msg(cli);
 }
 
-static bool cli_read_hdr(void *rst_priv, void *priv, bool success)
+static bool cli_read_hdr(void *rst_priv, void *priv,
+			 unsigned int buflen, bool success)
 {
 	struct client *cli = rst_priv;
 	uint32_t size;
@@ -573,7 +491,7 @@ static void tcp_srv_event(int fd, short events, void *userdata)
 
 	srv.stats.tcp_accept++;
 
-	cli = cli_alloc(cli_fd, &addr, addrlen);
+	cli = cli_alloc(cli_fd, &addr, addrlen, true);
 	if (!cli) {
 		applog(LOG_ERR, "OOM");
 		close(cli_fd);
@@ -621,6 +539,30 @@ err_out:
 	cli_free(cli);
 }
 
+static void http_srv_event(struct evhttp_request *req, void *arg)
+{
+	/* struct server_socket *sock = arg; */
+	const char *clen_str, *auth;
+	int clen = 0;
+
+	clen_str = evhttp_find_header(req->input_headers, "Content-Length");
+	if (clen_str)
+		clen = atoi(clen_str);
+	if (clen < 1 || clen > 999999)
+		goto err_out_bad_req;
+
+	auth = evhttp_find_header(req->input_headers, "Authorization");
+	if (!auth)
+		goto err_out_bad_req;
+
+	evhttp_send_reply(req, HTTP_OK, "ok", NULL);	/* FIXME!!! */
+
+	return;
+
+err_out_bad_req:
+	evhttp_send_reply(req, HTTP_BADREQUEST, "invalid args", NULL);
+}
+
 static int net_write_port(const char *port_file, const char *port_str)
 {
 	FILE *portf;
@@ -645,6 +587,7 @@ static int net_open_socket(const struct listen_cfg *cfg,
 	struct server_socket *sock;
 	int fd, on;
 	int rc;
+	bool have_http = (cfg->proto == LP_HTTP_JSON);
 
 	fd = socket(addr_fam, sock_type, sock_prot);
 	if (fd < 0) {
@@ -684,14 +627,27 @@ static int net_open_socket(const struct listen_cfg *cfg,
 
 	INIT_LIST_HEAD(&sock->sockets_node);
 
-	event_set(&sock->ev, fd, EV_READ | EV_PERSIST,
-		  tcp_srv_event, sock);
-
 	sock->fd = fd;
 	sock->cfg = cfg;
 
-	if (event_add(&sock->ev, NULL) < 0)
-		goto err_out_sock;
+	if (have_http) {
+		sock->http = evhttp_new(srv.evbase_main);
+		if (!sock->http)
+			goto err_out_sock;
+
+		if (evhttp_accept_socket(sock->http, fd) < 0) {
+			evhttp_free(sock->http);
+			goto err_out_sock;
+		}
+		
+		evhttp_set_cb(sock->http, "/", http_srv_event, sock);
+	} else {
+		event_set(&sock->ev, fd, EV_READ | EV_PERSIST,
+			  tcp_srv_event, sock);
+
+		if (event_add(&sock->ev, NULL) < 0)
+			goto err_out_sock;
+	}
 
 	list_add_tail(&sock->sockets_node, &srv.sockets);
 
