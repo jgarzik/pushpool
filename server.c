@@ -607,6 +607,8 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	bool rc;
 	struct evbuffer *evbuf;
 
+	applog(LOG_INFO, "HTTP request from %s", req->remote_host);
+
 	clen_str = evhttp_find_header(req->input_headers, "Content-Length");
 	if (clen_str)
 		clen = atoi(clen_str);
@@ -616,8 +618,10 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth)
 		goto err_out_bad_req;
-	if (!valid_auth_hdr(auth))
-		goto err_out_bad_req;
+	if (!valid_auth_hdr(auth)) {
+		evhttp_send_reply(req, 403, "not authorized", NULL);
+		return;
+	}
 
 	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
 		goto err_out_bad_req;

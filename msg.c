@@ -378,7 +378,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	json_object_set(resp, "id", id);
 
 	if (!method || strcmp(method, "getwork")) {
-		json_object_set(resp, "result", NULL);
+		json_object_set_new(resp, "result", json_null());
 		json_object_set_new(resp, "error",
 				    json_rpc_errobj(-1, "method not getwork"));
 		goto out;
@@ -386,18 +386,28 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 
 	/* get new work */
 	if (n_params == 0) {
+		json_t *result;
+
 		/* issue JSON-RPC request */
 		val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
 		if (!val) {
-			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "result", json_null());
 			json_object_set_new(resp, "error",
 				    json_rpc_errobj(-2, "upstream RPC error"));
 			goto out;
 		}
 
+		result = json_object_get(val, "result");
+		if (!result) {
+			json_object_set_new(resp, "result", json_null());
+			json_object_set_new(resp, "error",
+				    json_rpc_errobj(-5, "upstrm RPC corrupt"));
+			goto out;
+		}
+
 		/* use work directly as 'result' in response to client */
-		json_object_set_new(resp, "result", val);
-		json_object_set(resp, "error", NULL);
+		json_object_set_new(resp, "result", result);
+		json_object_set_new(resp, "error", json_null());
 	}
 
 	/* submit solution */
@@ -411,7 +421,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 		soln_str = json_string_value(soln);
 		soln_len = strlen(soln_str);
 		if (!soln_str || soln_len < (80*2) || soln_len > (128*2)) {
-			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "result", json_null());
 			json_object_set_new(resp, "error",
 				    json_rpc_errobj(-3, "invalid solution"));
 			goto out;
@@ -422,9 +432,9 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 		if (rpc_rc) {
 			json_object_set_new(resp, "result",
 				json_result ? json_true() : json_false());
-			json_object_set(resp, "error", NULL);
+			json_object_set_new(resp, "error", json_null());
 		} else {
-			json_object_set(resp, "result", NULL);
+			json_object_set_new(resp, "result", json_null());
 			json_object_set_new(resp, "error",
 				    json_rpc_errobj(-4, "upstream RPC error"));
 		}
