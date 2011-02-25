@@ -607,7 +607,7 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	bool rc;
 	struct evbuffer *evbuf;
 
-	applog(LOG_INFO, "HTTP request from %s", req->remote_host);
+	applog(LOG_INFO, "%s - - \"%s\"", req->remote_host, req->uri);
 
 	clen_str = evhttp_find_header(req->input_headers, "Content-Length");
 	if (clen_str)
