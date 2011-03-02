@@ -659,7 +659,6 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 		return;
 	}
 
-	applog(LOG_INFO, "%s %s \"%s\"", req->remote_host, username, req->uri);
 	reqlog(req->remote_host, username, req->uri);
 
 	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
