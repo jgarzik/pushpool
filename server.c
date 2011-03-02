@@ -912,6 +912,8 @@ static void hup_signal(int signo)
 {
 	if (srv.req_fd < 0)
 		return;
+
+	applog(LOG_INFO, "HUP signal received, reopening logs");
 	
 	if (close(srv.req_fd) < 0)
 		syslogerr(srv.req_log);
