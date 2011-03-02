@@ -85,6 +85,8 @@ struct timeval current_time;
 
 struct server srv = {
 	.config		= "server.json",
+	.pid_fd		= -1,
+	.req_fd		= -1,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -599,10 +601,27 @@ out:
 static void reqlog(const char *rem_host, const char *username,
 		   const char *uri)
 {
-	applog(LOG_INFO, "%s %s \"%s\"", rem_host,
-	       (rem_host && *rem_host) ? rem_host : "-",
-	       (username && *username) ? username : "-",
-	       (uri && *uri) ? uri : "");
+	struct timeval tv = { };
+	char *f;
+	ssize_t wrc;
+
+	if (srv.req_fd < 0)
+		return;
+
+	gettimeofday(&tv, NULL);
+
+	asprintf(&f, "[%llu.%llu] %s %s \"%s\"\n",
+		(unsigned long long) tv.tv_sec,
+		(unsigned long long) tv.tv_usec,
+	        (rem_host && *rem_host) ? rem_host : "-",
+	        (username && *username) ? username : "-",
+	        (uri && *uri) ? uri : "");
+
+	wrc = write(srv.req_fd, f, strlen(f));
+	if (wrc != strlen(f))
+		syslogerr(srv.req_log);
+
+	free(f);
 }
 
 static void http_srv_event(struct evhttp_request *req, void *arg)
@@ -890,6 +909,19 @@ static void term_signal(int signo)
 	event_loopbreak();
 }
 
+static void hup_signal(int signo)
+{
+	if (srv.req_fd < 0)
+		return;
+	
+	if (close(srv.req_fd) < 0)
+		syslogerr(srv.req_log);
+
+	srv.req_fd = open(srv.req_log, O_WRONLY | O_CREAT | O_APPEND, 0666);
+	if (srv.req_fd < 0)
+		syslogerr(srv.req_log);
+}
+
 static void stats_signal(int signo)
 {
 	dump_stats = true;
@@ -990,7 +1022,7 @@ int main (int argc, char *argv[])
 	/*
 	 * properly capture TERM and other signals
 	 */
-	signal(SIGHUP, SIG_IGN);
+	signal(SIGHUP, hup_signal);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, term_signal);
 	signal(SIGTERM, term_signal);

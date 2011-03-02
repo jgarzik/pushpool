@@ -89,6 +89,9 @@ struct server {
 	char			*pid_file;	/* PID file */
 	int			pid_fd;
 
+	char			*req_log;	/* client request log */
+	int			req_fd;
+
 	struct event_base	*evbase_main;
 
 	CURL			*curl;

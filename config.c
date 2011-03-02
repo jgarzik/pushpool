@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <syslog.h>
 #include <jansson.h>
 #include "server.h"
@@ -107,6 +108,17 @@ void read_config(void)
 	tmp_str = json_string_value(json_object_get(jcfg, "forcehost"));
 	if (tmp_str)
 		srv.ourhost = strdup(tmp_str);
+
+	tmp_str = json_string_value(json_object_get(jcfg, "request_log"));
+	if (tmp_str) {
+		srv.req_log = strdup(tmp_str);
+		srv.req_fd = open(srv.req_log,
+				  O_WRONLY | O_CREAT | O_APPEND, 0666);
+		if (srv.req_fd < 0) {
+			syslogerr(srv.req_log);
+			exit(1);
+		}
+	}
 
 	tmp_str = json_string_value(json_object_get(jcfg, "rpc_url"));
 	if (!tmp_str) {
