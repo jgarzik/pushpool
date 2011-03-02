@@ -290,6 +290,9 @@ static bool submit_work(CURL *curl, const char *hexstr, bool *json_result)
 	*json_result = json_is_true(json_object_get(val, "result"));
 	rc = true;
 
+	applog(LOG_INFO, "PROOF-OF-WORK submitted upstream.  Result: %s",
+	       json_result ? "TRUE" : "false");
+
 	json_decref(val);
 
 out:
