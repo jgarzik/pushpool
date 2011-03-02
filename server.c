@@ -596,12 +596,21 @@ out:
 	return rc;
 }
 
+static void reqlog(const char *rem_host, const char *username,
+		   const char *uri)
+{
+	applog(LOG_INFO, "%s %s \"%s\"", rem_host,
+	       (rem_host && *rem_host) ? rem_host : "-",
+	       (username && *username) ? username : "-",
+	       (uri && *uri) ? uri : "");
+}
+
 static void http_srv_event(struct evhttp_request *req, void *arg)
 {
 	/* struct server_socket *sock = arg; */
 	const char *clen_str, *auth;
 	char *body_str;
-	char username[65];
+	char username[65] = "";
 	void *body, *reply = NULL;
 	int clen = 0;
 	unsigned int reply_len = 0;
@@ -614,24 +623,25 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	if (clen_str)
 		clen = atoi(clen_str);
 	if (clen < 1 || clen > 999999) {
-		applog(LOG_INFO, "%s - \"%s\"", req->remote_host, req->uri);
+		reqlog(req->remote_host, username, req->uri);
 		evhttp_send_reply(req, HTTP_BADREQUEST, "invalid args", NULL);
 		return;
 	}
 
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth) {
-		applog(LOG_INFO, "%s - \"%s\"", req->remote_host, req->uri);
+		reqlog(req->remote_host, username, req->uri);
 		evhttp_send_reply(req, 401, "not authorized", NULL);
 		return;
 	}
 	if (!valid_auth_hdr(auth, username)) {
-		applog(LOG_INFO, "%s - \"%s\"", req->remote_host, req->uri);
+		reqlog(req->remote_host, username, req->uri);
 		evhttp_send_reply(req, 403, "access forbidden", NULL);
 		return;
 	}
 
 	applog(LOG_INFO, "%s %s \"%s\"", req->remote_host, username, req->uri);
+	reqlog(req->remote_host, username, req->uri);
 
 	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
 		goto err_out_bad_req;
