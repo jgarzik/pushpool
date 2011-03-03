@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <jansson.h>
+#include <byteswap.h>
 #include <openssl/sha.h>
 #include <syslog.h>
 #include "server.h"
@@ -269,11 +270,45 @@ err_out:
 	return false;
 }
 
+static int check_hash(const char *data_str)
+{
+	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
+	uint32_t *hash32 = (uint32_t *) hash;
+	unsigned char data[128];
+	uint32_t *data32 = (uint32_t *) data;
+	bool rc;
+	int i;
+
+	rc = hex2bin(data, data_str, sizeof(data));
+	if (!rc) {
+		applog(LOG_ERR, "check_hash hex2bin failed");
+		return -1;		/* error; failure */
+	}
+
+	for (i = 0; i < 128/4; i++)
+		data32[i] = bswap_32(data32[i]);
+	
+	SHA256(data, 80, hash1);
+	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
+
+	if (hash32[7] != 0) {
+		applog(LOG_WARNING, "submitted work invalid, H != 0");
+		return 0;		/* work is invalid */
+	}
+	
+	return 1;			/* work is valid */
+}
+
 static bool submit_work(CURL *curl, const char *hexstr, bool *json_result)
 {
 	json_t *val;
 	char s[256 + 80];
 	bool rc = false;
+	int check_rc;
+
+	check_rc = check_hash(hexstr);
+	if (check_rc < 0)
+		goto out;
 
 	/* build JSON-RPC request */
 	sprintf(s,
