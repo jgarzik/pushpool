@@ -1020,6 +1020,10 @@ int main (int argc, char *argv[])
 		goto err_out;
 	srv.pid_fd = rc;
 
+	srv.hist = hist_alloc();
+	if (!srv.hist)
+		goto err_out;
+
 	/*
 	 * properly capture TERM and other signals
 	 */
@@ -1057,6 +1061,10 @@ err_out_listen:
 	close(srv.pid_fd);
 err_out:
 	closelog();
+
+	if (strict_free)
+		hist_free(srv.hist);
+
 	return rc;
 }
 

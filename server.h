@@ -37,6 +37,8 @@
 #define	MIN(a,b) (((a)<(b))?(a):(b))
 #endif
 
+struct hist;
+
 struct client {
 	struct sockaddr_in6	addr;		/* inet address */
 	char			addr_host[64];	/* ASCII version of inet addr */
@@ -101,6 +103,8 @@ struct server {
 	char			*rpc_url;
 	char			*rpc_userpass;
 
+	struct hist		*hist;
+
 	struct list_head	listeners;
 	struct list_head	sockets;	/* points into listeners */
 
@@ -119,6 +123,8 @@ extern bool cli_op_work_get(struct client *cli, unsigned int msgsz);
 extern bool cli_op_work_submit(struct client *cli, unsigned int msgsz);
 extern bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 			 void **reply, unsigned int *reply_len);
+extern void hist_free(struct hist *hist);
+extern struct hist *hist_alloc(void);
 
 /* server.c */
 extern int debugging;
