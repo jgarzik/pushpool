@@ -270,7 +270,7 @@ err_out:
 	return false;
 }
 
-static int check_hash(const char *data_str)
+static int check_hash(const char *remote_host, const char *data_str)
 {
 	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
 	uint32_t *hash32 = (uint32_t *) hash;
@@ -292,21 +292,23 @@ static int check_hash(const char *data_str)
 	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
 
 	if (hash32[7] != 0) {
-		applog(LOG_WARNING, "submitted work invalid, H != 0");
+		applog(LOG_WARNING, "[%s] submitted work invalid, H != 0",
+			remote_host);
 		return 0;		/* work is invalid */
 	}
 	
 	return 1;			/* work is valid */
 }
 
-static bool submit_work(CURL *curl, const char *hexstr, bool *json_result)
+static bool submit_work(const char *remote_host, CURL *curl,
+			const char *hexstr, bool *json_result)
 {
 	json_t *val;
 	char s[256 + 80];
 	bool rc = false;
 	int check_rc;
 
-	check_rc = check_hash(hexstr);
+	check_rc = check_hash(remote_host, hexstr);
 	if (check_rc < 0)
 		goto out;
 
@@ -325,7 +327,8 @@ static bool submit_work(CURL *curl, const char *hexstr, bool *json_result)
 	*json_result = json_is_true(json_object_get(val, "result"));
 	rc = true;
 
-	applog(LOG_INFO, "PROOF-OF-WORK submitted upstream.  Result: %s",
+	applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  Result: %s",
+	       remote_host,
 	       *json_result ? "TRUE" : "false");
 
 	json_decref(val);
@@ -334,7 +337,8 @@ out:
 	return rc;
 }
 
-static bool submit_bin_work(CURL *curl, void *data, bool *json_result)
+static bool submit_bin_work(const char *remote_host, CURL *curl,
+			    void *data, bool *json_result)
 {
 	char *hexstr = NULL;
 	bool rc = false;
@@ -346,7 +350,7 @@ static bool submit_bin_work(CURL *curl, void *data, bool *json_result)
 		goto out;
 	}
 
-	rc = submit_work(curl, hexstr, json_result);
+	rc = submit_work(remote_host, curl, hexstr, json_result);
 
 	free(hexstr);
 
@@ -361,7 +365,7 @@ bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 
 	if (msgsz != 128)
 		goto err_out;
-	if (!submit_bin_work(srv.curl, cli->msg, &json_res)) {
+	if (!submit_bin_work(cli->addr_host, srv.curl, cli->msg, &json_res)) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
 	}
@@ -465,7 +469,8 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 			goto out;
 		}
 
-		rpc_rc = submit_work(srv.curl, soln_str, &json_result);
+		rpc_rc = submit_work(req->remote_host, srv.curl,
+				     soln_str, &json_result);
 
 		if (rpc_rc) {
 			json_object_set_new(resp, "result",
