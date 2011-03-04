@@ -520,7 +520,6 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	json_t *params, *id, *resp;
 	char *resp_str;
 	bool rc = false;
-	json_t *val;
 	char s[128];
 	unsigned int n_params;
 
@@ -546,7 +545,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 
 	/* get new work */
 	if (n_params == 0) {
-		json_t *result;
+		json_t *val, *result;
 
 		/* issue JSON-RPC request */
 		val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
@@ -566,8 +565,10 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 		}
 
 		/* use work directly as 'result' in response to client */
-		json_object_set_new(resp, "result", result);
+		json_object_set_new(resp, "result", json_deep_copy(result));
 		json_object_set_new(resp, "error", json_null());
+
+		json_decref(val);
 	}
 
 	/* submit solution */
