@@ -724,6 +724,43 @@ static int net_write_port(const char *port_file, const char *port_str)
 	return 0;
 }
 
+static void net_sock_free(struct server_socket *sock)
+{
+	if (!sock)
+		return;
+	
+	list_del_init(&sock->sockets_node);
+
+	if (sock->http)
+		evhttp_free(sock->http);
+	else
+		event_del(&sock->ev);
+
+	if (sock->fd >= 0)
+		close(sock->fd);
+	
+	memset(sock, 0, sizeof(*sock));	/* poison */
+	free(sock);
+}
+
+static void net_close(void)
+{
+	struct server_socket *sock, *iter;
+	struct listen_cfg *cfg, *citer;
+
+	list_for_each_entry_safe(sock, iter, &srv.sockets, sockets_node) {
+		net_sock_free(sock);
+	}
+
+	list_for_each_entry_safe(cfg, citer, &srv.listeners, listeners_node) {
+		list_del_init(&cfg->listeners_node);
+		free(cfg->host);
+		free(cfg->port_file);
+		memset(cfg, 0, sizeof(*cfg)); /* poison */
+		free(cfg);
+	}
+}
+
 static int net_open_socket(const struct listen_cfg *cfg,
 			   int addr_fam, int sock_type, int sock_prot,
 			   int addr_len, void *addr_ptr)
@@ -1062,8 +1099,22 @@ err_out_listen:
 err_out:
 	closelog();
 
-	if (strict_free)
+	if (strict_free) {
 		hist_free(srv.hist);
+		net_close();
+		curl_easy_cleanup(srv.curl);
+		curl_global_cleanup();
+		if (srv.req_fd >= 0)
+			close(srv.req_fd);
+		free(srv.req_log);
+		if (srv.pid_fd >= 0)
+			close(srv.pid_fd);
+		free(srv.pid_file);
+		free(srv.ourhost);
+		free(srv.rpc_url);
+		free(srv.rpc_userpass);
+		event_base_free(srv.evbase_main);
+	}
 
 	return rc;
 }
