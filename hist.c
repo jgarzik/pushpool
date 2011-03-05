@@ -7,8 +7,8 @@
 #include "elist.h"
 
 enum {
-	HIST_TBL_SZ	= 4095,
 	HIST_LOG_SZ	= 10000,
+	HIST_TBL_SZ	= (HIST_LOG_SZ * 2) - 1,
 };
 
 struct hist_entry {
