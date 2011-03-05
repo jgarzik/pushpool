@@ -35,7 +35,7 @@ struct htab {
 
 static const unsigned int primes[] = {
 	5,
-	/* 13, 23, 53, */ 97,
+	/* 13, 23, 53, 97, */
 	/* 193, 389, */ 769,
 	/* 1543, 3079, */ 6151,
 	/* 12289, 24593, */ 49157,
@@ -204,9 +204,8 @@ bool htab_put(struct htab *htab, void *key, void *value)
 	unsigned int bucket = hash % htab_sz(htab);
 
 	/* optionally resize table */
-	if (htab_need_resize(htab))
-		if (!htab_resize(htab))
-			return false;
+	if (htab_need_resize(htab) && !htab_resize(htab))
+		return false;
 
 	/* alloc * init hash entry */
 	ent = calloc(1, sizeof(*ent));
