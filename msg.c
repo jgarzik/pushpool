@@ -520,11 +520,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	json_t *params, *id, *resp;
 	char *resp_str;
 	bool rc = false;
-	char s[128];
 	unsigned int n_params;
-
-	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
-		rpcid++);
 
 	method = json_string_value(json_object_get(jreq, "method"));
 	params = json_object_get(jreq, "params");
@@ -546,6 +542,11 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	/* get new work */
 	if (n_params == 0) {
 		json_t *val, *result;
+		char s[128];
+
+		sprintf(s,
+		     "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
+			rpcid++);
 
 		/* issue JSON-RPC request */
 		val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
