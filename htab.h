@@ -11,6 +11,7 @@ extern struct htab *htab_new(htab_hash_fn hash_fn,
 			     htab_cmp_fn cmp_fn,
 			     htab_free_fn free_key_fn,
 			     htab_free_fn free_value_fn);
+extern struct htab *htab_str_new(bool free_key, bool free_value);
 extern void htab_free(struct htab *htab);
 
 extern bool htab_del(struct htab *htab, const void *key);

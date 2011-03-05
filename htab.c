@@ -90,6 +90,13 @@ struct htab *htab_new(htab_hash_fn hash_fn,
 	return htab;
 }
 
+struct htab *htab_str_new(bool free_key, bool free_value)
+{
+	return htab_new(htab_str_hash, htab_str_cmp,
+			free_key ? free : NULL,
+			free_value ? free : NULL);
+}
+
 static void htab_free_ent(struct htab *htab, struct htab_entry *ent)
 {
 	if (!htab || !ent)
