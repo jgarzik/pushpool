@@ -125,6 +125,8 @@ extern bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 			 void **reply, unsigned int *reply_len);
 extern void hist_free(struct hist *hist);
 extern struct hist *hist_alloc(void);
+extern bool hist_add(struct hist *hist, const unsigned char *hash);
+extern bool hist_lookup(struct hist *hist, const unsigned char *hash);
 
 /* server.c */
 extern int debugging;
