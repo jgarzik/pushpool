@@ -58,6 +58,11 @@ static void htab_init_buckets(struct htab_bucket *buckets, int sz)
 	}
 }
 
+unsigned int htab_size(struct htab *htab)
+{
+	return htab->n_ent;
+}
+
 struct htab *htab_new(htab_hash_fn hash_fn,
 		      htab_cmp_fn cmp_fn,
 		      htab_free_fn free_key_fn,
@@ -262,6 +267,20 @@ bool htab_del(struct htab *htab, const void *key)
 	return found;
 }
 
+void htab_foreach(struct htab *htab, htab_iter_fn iter_fn, void *userdata)
+{
+	int i;
+
+	for (i = 0; i < htab_sz(htab); i++) {
+		struct htab_entry *ent, *iter;
+
+		list_for_each_entry_safe(ent, iter,
+				         &htab->buckets[i].chain, chain_node) {
+			iter_fn(ent->key, ent->value, userdata);
+		}
+	}
+}
+
 /* "djb2"-derived hash function */
 unsigned long htab_djb_hash(unsigned long hash, const void *_buf, size_t buflen)
 {
@@ -278,11 +297,34 @@ unsigned long htab_djb_hash(unsigned long hash, const void *_buf, size_t buflen)
 	return hash;
 }
 
-unsigned long htab_direct_hash(const void *buf)
+unsigned long htab_ulong_hash(const void *buf)
 {
 	const unsigned long *v = buf;
 
 	return *v;
+}
+
+int htab_ulong_cmp(const void *data1, const void *data2)
+{
+	const unsigned long *v1 = data1;
+	const unsigned long *v2 = data2;
+
+	return (*v1) - (*v2);
+}
+
+unsigned long htab_int_hash(const void *buf)
+{
+	const unsigned int *v = buf;
+
+	return *v;
+}
+
+int htab_int_cmp(const void *data1, const void *data2)
+{
+	const unsigned int *v1 = data1;
+	const unsigned int *v2 = data2;
+
+	return (*v1) - (*v2);
 }
 
 unsigned long htab_str_hash(const void *buf)
