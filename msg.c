@@ -51,12 +51,159 @@ char *pwdb_lookup(const char *user)
 	return strdup("testpass");
 }
 
+static bool jobj_binary(const json_t *obj, const char *key,
+			void *buf, size_t buflen)
+{
+	const char *hexstr;
+	json_t *tmp;
+
+	tmp = json_object_get(obj, key);
+	if (!tmp) {
+		return false;
+	}
+	hexstr = json_string_value(tmp);
+	if (!hexstr) {
+		return false;
+	}
+	if (!hex2bin(buf, hexstr, buflen))
+		return false;
+
+	return true;
+}
+
+static bool work_decode(const json_t *val, struct bc_work *work)
+{
+	if (!jobj_binary(val, "midstate",
+			 work->midstate, sizeof(work->midstate))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "data", work->data, sizeof(work->data))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "hash1", work->hash1, sizeof(work->hash1))) {
+		goto err_out;
+	}
+
+	if (!jobj_binary(val, "target", work->target, sizeof(work->target))) {
+		goto err_out;
+	}
+
+	return true;
+
+err_out:
+	return false;
+}
+
+static unsigned int rpcid = 1;
+
+static int check_hash(const char *remote_host, const char *data_str)
+{
+	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
+	uint32_t *hash32 = (uint32_t *) hash;
+	unsigned char data[128];
+	uint32_t *data32 = (uint32_t *) data;
+	bool rc;
+	int i;
+
+	rc = hex2bin(data, data_str, sizeof(data));
+	if (!rc) {
+		applog(LOG_ERR, "check_hash hex2bin failed");
+		return -1;		/* error; failure */
+	}
+
+	for (i = 0; i < 128/4; i++)
+		data32[i] = bswap_32(data32[i]);
+	
+	SHA256(data, 80, hash1);
+	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
+
+	if (hash32[7] != 0) {
+		applog(LOG_WARNING, "[%s] submitted work invalid, H != 0",
+			remote_host);
+		return 0;		/* work is invalid */
+	}
+
+	if (hist_lookup(srv.hist, hash)) {
+		applog(LOG_WARNING, "[%s] submitted duplicate work",
+			remote_host);
+		return 0;		/* work is invalid */
+	}
+	if (!hist_add(srv.hist, hash)) {
+		applog(LOG_ERR, "hist_add OOM");
+		return -1;		/* error; failure */
+	}
+	
+	return 1;			/* work is valid */
+}
+
+static bool submit_work(const char *remote_host, const char *auth_user,
+			CURL *curl, const char *hexstr, bool *json_result)
+{
+	json_t *val;
+	char s[256 + 80];
+	bool rc = false;
+	int check_rc;
+
+	check_rc = check_hash(remote_host, hexstr);
+	if (check_rc < 0)
+		goto out;
+
+	/* build JSON-RPC request */
+	sprintf(s,
+	      "{\"method\": \"getwork\", \"params\": [ \"%s\" ], \"id\":1}\r\n",
+		hexstr);
+
+	/* issue JSON-RPC request */
+	val = json_rpc_call(curl, srv.rpc_url, srv.rpc_userpass, s);
+	if (!val) {
+		fprintf(stderr, "submit_work json_rpc_call failed\n");
+		goto out;
+	}
+
+	*json_result = json_is_true(json_object_get(val, "result"));
+	rc = true;
+
+	sharelog(remote_host, auth_user, *json_result ? "Y" : "N", hexstr);
+
+	applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  Result: %s",
+	       remote_host,
+	       *json_result ? "TRUE" : "false");
+
+	json_decref(val);
+
+out:
+	return rc;
+}
+
+static bool submit_bin_work(const char *remote_host, const char *auth_user,
+			    CURL *curl, void *data, bool *json_result)
+{
+	char *hexstr = NULL;
+	bool rc = false;
+
+	/* build hex string */
+	hexstr = bin2hex(data, 128);
+	if (!hexstr) {
+		fprintf(stderr, "submit_work OOM\n");
+		goto out;
+	}
+
+	rc = submit_work(remote_host, auth_user, curl, hexstr, json_result);
+
+	free(hexstr);
+
+out:
+	return rc;
+}
+
 static bool cli_config(struct client *cli, const json_t *cfg)
 {
 	/* FIXME */
 	return false;
 }
-	
+
 bool cli_op_login(struct client *cli, const json_t *obj, unsigned int msgsz)
 {
 	char user[33];
@@ -165,53 +312,6 @@ bool cli_op_config(struct client *cli, const json_t *cfg)
 	return rc;
 }
 
-static bool jobj_binary(const json_t *obj, const char *key,
-			void *buf, size_t buflen)
-{
-	const char *hexstr;
-	json_t *tmp;
-
-	tmp = json_object_get(obj, key);
-	if (!tmp) {
-		return false;
-	}
-	hexstr = json_string_value(tmp);
-	if (!hexstr) {
-		return false;
-	}
-	if (!hex2bin(buf, hexstr, buflen))
-		return false;
-
-	return true;
-}
-
-static bool work_decode(const json_t *val, struct bc_work *work)
-{
-	if (!jobj_binary(val, "midstate",
-			 work->midstate, sizeof(work->midstate))) {
-		goto err_out;
-	}
-
-	if (!jobj_binary(val, "data", work->data, sizeof(work->data))) {
-		goto err_out;
-	}
-
-	if (!jobj_binary(val, "hash1", work->hash1, sizeof(work->hash1))) {
-		goto err_out;
-	}
-
-	if (!jobj_binary(val, "target", work->target, sizeof(work->target))) {
-		goto err_out;
-	}
-
-	return true;
-
-err_out:
-	return false;
-}
-
-static unsigned int rpcid = 1;
-
 bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 {
 	json_t *val;
@@ -272,106 +372,6 @@ bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 err_out:
 	cli_send_err(cli, BC_OP_RESP_ERR, err_code, bc_err_str[err_code]);
 	return false;
-}
-
-static int check_hash(const char *remote_host, const char *data_str)
-{
-	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
-	uint32_t *hash32 = (uint32_t *) hash;
-	unsigned char data[128];
-	uint32_t *data32 = (uint32_t *) data;
-	bool rc;
-	int i;
-
-	rc = hex2bin(data, data_str, sizeof(data));
-	if (!rc) {
-		applog(LOG_ERR, "check_hash hex2bin failed");
-		return -1;		/* error; failure */
-	}
-
-	for (i = 0; i < 128/4; i++)
-		data32[i] = bswap_32(data32[i]);
-	
-	SHA256(data, 80, hash1);
-	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
-
-	if (hash32[7] != 0) {
-		applog(LOG_WARNING, "[%s] submitted work invalid, H != 0",
-			remote_host);
-		return 0;		/* work is invalid */
-	}
-
-	if (hist_lookup(srv.hist, hash)) {
-		applog(LOG_WARNING, "[%s] submitted duplicate work",
-			remote_host);
-		return 0;		/* work is invalid */
-	}
-	if (!hist_add(srv.hist, hash)) {
-		applog(LOG_ERR, "hist_add OOM");
-		return -1;		/* error; failure */
-	}
-	
-	return 1;			/* work is valid */
-}
-
-static bool submit_work(const char *remote_host, const char *auth_user,
-			CURL *curl, const char *hexstr, bool *json_result)
-{
-	json_t *val;
-	char s[256 + 80];
-	bool rc = false;
-	int check_rc;
-
-	check_rc = check_hash(remote_host, hexstr);
-	if (check_rc < 0)
-		goto out;
-
-	/* build JSON-RPC request */
-	sprintf(s,
-	      "{\"method\": \"getwork\", \"params\": [ \"%s\" ], \"id\":1}\r\n",
-		hexstr);
-
-	/* issue JSON-RPC request */
-	val = json_rpc_call(curl, srv.rpc_url, srv.rpc_userpass, s);
-	if (!val) {
-		fprintf(stderr, "submit_work json_rpc_call failed\n");
-		goto out;
-	}
-
-	*json_result = json_is_true(json_object_get(val, "result"));
-	rc = true;
-
-	sharelog(remote_host, auth_user, *json_result ? "Y" : "N", hexstr);
-
-	applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  Result: %s",
-	       remote_host,
-	       *json_result ? "TRUE" : "false");
-
-	json_decref(val);
-
-out:
-	return rc;
-}
-
-static bool submit_bin_work(const char *remote_host, const char *auth_user,
-			    CURL *curl, void *data, bool *json_result)
-{
-	char *hexstr = NULL;
-	bool rc = false;
-
-	/* build hex string */
-	hexstr = bin2hex(data, 128);
-	if (!hexstr) {
-		fprintf(stderr, "submit_work OOM\n");
-		goto out;
-	}
-
-	rc = submit_work(remote_host, auth_user, curl, hexstr, json_result);
-
-	free(hexstr);
-
-out:
-	return rc;
 }
 
 bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
