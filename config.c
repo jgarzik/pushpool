@@ -109,7 +109,7 @@ void read_config(void)
 	if (tmp_str)
 		srv.ourhost = strdup(tmp_str);
 
-	tmp_str = json_string_value(json_object_get(jcfg, "request_log"));
+	tmp_str = json_string_value(json_object_get(jcfg, "log.requests"));
 	if (tmp_str) {
 		srv.req_log = strdup(tmp_str);
 		srv.req_fd = open(srv.req_log,
@@ -120,15 +120,26 @@ void read_config(void)
 		}
 	}
 
-	tmp_str = json_string_value(json_object_get(jcfg, "rpc_url"));
+	tmp_str = json_string_value(json_object_get(jcfg, "log.shares"));
+	if (tmp_str) {
+		srv.share_log = strdup(tmp_str);
+		srv.share_fd = open(srv.share_log,
+				  O_WRONLY | O_CREAT | O_APPEND, 0666);
+		if (srv.share_fd < 0) {
+			syslogerr(srv.share_log);
+			exit(1);
+		}
+	}
+
+	tmp_str = json_string_value(json_object_get(jcfg, "rpc.url"));
 	if (!tmp_str) {
 		applog(LOG_ERR, "error: no RPC URL specified");
 		exit(1);
 	}
 	srv.rpc_url = strdup(tmp_str);
 
-	rpcuser = json_string_value(json_object_get(jcfg, "rpc_user"));
-	rpcpass = json_string_value(json_object_get(jcfg, "rpc_pass"));
+	rpcuser = json_string_value(json_object_get(jcfg, "rpc.user"));
+	rpcpass = json_string_value(json_object_get(jcfg, "rpc.pass"));
 	if (!rpcuser || !rpcpass) {
 		applog(LOG_ERR, "error: no RPC user and/or password specified");
 		exit(1);

@@ -50,6 +50,7 @@ struct client {
 	struct tcp_read_state	rst;
 
 	bool			logged_in;
+	char			auth_user[33];	/* authenticated username */
 
 	struct ubbp_header	ubbp;
 
@@ -94,6 +95,9 @@ struct server {
 	char			*req_log;	/* client request log */
 	int			req_fd;
 
+	char			*share_log;	/* client share log */
+	int			share_fd;
+
 	struct event_base	*evbase_main;
 
 	CURL			*curl;
@@ -122,6 +126,7 @@ extern bool cli_op_config(struct client *cli, const json_t *obj);
 extern bool cli_op_work_get(struct client *cli, unsigned int msgsz);
 extern bool cli_op_work_submit(struct client *cli, unsigned int msgsz);
 extern bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
+			 const char *username,
 			 void **reply, unsigned int *reply_len);
 extern void hist_free(struct hist *hist);
 extern struct hist *hist_alloc(void);
@@ -132,6 +137,8 @@ extern bool hist_lookup(struct hist *hist, const unsigned char *hash);
 extern int debugging;
 extern bool use_syslog;
 extern struct server srv;
+extern void sharelog(const char *rem_host, const char *username,
+		     const char *, const char *);
 extern bool cjson_encode(unsigned char op, const char *obj_unc,
 		  void **msg_out, size_t *msglen_out);
 extern bool cjson_encode_obj(unsigned char op, const json_t *obj,

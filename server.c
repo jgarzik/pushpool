@@ -87,6 +87,7 @@ struct server srv = {
 	.config		= "server.json",
 	.pid_fd		= -1,
 	.req_fd		= -1,
+	.share_fd	= -1,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -624,6 +625,33 @@ static void reqlog(const char *rem_host, const char *username,
 	free(f);
 }
 
+void sharelog(const char *rem_host, const char *username,
+	      const char *upstream_result, const char *solution)
+{
+	struct timeval tv = { };
+	char *f;
+	ssize_t wrc;
+
+	if (srv.share_fd < 0)
+		return;
+
+	gettimeofday(&tv, NULL);
+
+	asprintf(&f, "[%llu.%llu] %s %s %s %s\n",
+		(unsigned long long) tv.tv_sec,
+		(unsigned long long) tv.tv_usec,
+	        (rem_host && *rem_host) ? rem_host : "-",
+	        (username && *username) ? username : "-",
+	        (upstream_result && *upstream_result) ? upstream_result : "-",
+		(solution && *solution) ? solution : "-");
+
+	wrc = write(srv.share_fd, f, strlen(f));
+	if (wrc != strlen(f))
+		syslogerr(srv.share_log);
+
+	free(f);
+}
+
 static void http_srv_event(struct evhttp_request *req, void *arg)
 {
 	/* struct server_socket *sock = arg; */
@@ -675,7 +703,7 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 	if (!jreq)
 		goto err_out_bad_req;
 
-	rc = msg_json_rpc(req, jreq, &reply, &reply_len);
+	rc = msg_json_rpc(req, jreq, username, &reply, &reply_len);
 
 	json_decref(jreq);
 
@@ -945,19 +973,27 @@ static void term_signal(int signo)
 	event_loopbreak();
 }
 
+static int log_reopen(int fd, const char *fn)
+{
+	if (!fn || !*fn)
+		return -1;
+	
+	if ((fd >= 0) && (close(fd) < 0))
+		syslogerr(fn);
+	
+	fd = open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
+	if (fd < 0)
+		syslogerr(fn);
+	
+	return fd;
+}
+
 static void hup_signal(int signo)
 {
-	if (srv.req_fd < 0)
-		return;
-
 	applog(LOG_INFO, "HUP signal received, reopening logs");
 	
-	if (close(srv.req_fd) < 0)
-		syslogerr(srv.req_log);
-
-	srv.req_fd = open(srv.req_log, O_WRONLY | O_CREAT | O_APPEND, 0666);
-	if (srv.req_fd < 0)
-		syslogerr(srv.req_log);
+	srv.req_fd = log_reopen(srv.req_fd, srv.req_log);
+	srv.share_fd = log_reopen(srv.share_fd, srv.share_log);
 }
 
 static void stats_signal(int signo)
@@ -1104,12 +1140,19 @@ err_out:
 		net_close();
 		curl_easy_cleanup(srv.curl);
 		curl_global_cleanup();
+
 		if (srv.req_fd >= 0)
 			close(srv.req_fd);
 		free(srv.req_log);
+
+		if (srv.share_fd >= 0)
+			close(srv.share_fd);
+		free(srv.share_log);
+
 		if (srv.pid_fd >= 0)
 			close(srv.pid_fd);
 		free(srv.pid_file);
+
 		free(srv.ourhost);
 		free(srv.rpc_url);
 		free(srv.rpc_userpass);

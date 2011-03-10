@@ -59,7 +59,7 @@ static bool cli_config(struct client *cli, const json_t *cfg)
 	
 bool cli_op_login(struct client *cli, const json_t *obj, unsigned int msgsz)
 {
-	const char *user;
+	char user[33];
 	char *pass;
 	json_t *cfg, *resobj, *res_cfgobj;
 	int version, err_code = BC_ERR_INTERNAL;
@@ -75,7 +75,9 @@ bool cli_op_login(struct client *cli, const json_t *obj, unsigned int msgsz)
 	}
 
 	/* read username, and retrieve associated password from database */
-	user = json_string_value(json_object_get(obj, "user"));
+	strncpy(user, json_string_value(json_object_get(obj, "user")),
+		sizeof(user));
+	user[sizeof(user) - 1] = 0;
 
 	pass = pwdb_lookup(user);
 	if (!pass) {
@@ -124,8 +126,10 @@ bool cli_op_login(struct client *cli, const json_t *obj, unsigned int msgsz)
 
 	json_decref(resobj);
 
-	if (rc)
+	if (rc) {
+		strcpy(cli->auth_user, user);
 		cli->logged_in = true;
+	}
 
 	return rc;
 
@@ -310,8 +314,8 @@ static int check_hash(const char *remote_host, const char *data_str)
 	return 1;			/* work is valid */
 }
 
-static bool submit_work(const char *remote_host, CURL *curl,
-			const char *hexstr, bool *json_result)
+static bool submit_work(const char *remote_host, const char *auth_user,
+			CURL *curl, const char *hexstr, bool *json_result)
 {
 	json_t *val;
 	char s[256 + 80];
@@ -337,6 +341,8 @@ static bool submit_work(const char *remote_host, CURL *curl,
 	*json_result = json_is_true(json_object_get(val, "result"));
 	rc = true;
 
+	sharelog(remote_host, auth_user, *json_result ? "Y" : "N", hexstr);
+
 	applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  Result: %s",
 	       remote_host,
 	       *json_result ? "TRUE" : "false");
@@ -347,8 +353,8 @@ out:
 	return rc;
 }
 
-static bool submit_bin_work(const char *remote_host, CURL *curl,
-			    void *data, bool *json_result)
+static bool submit_bin_work(const char *remote_host, const char *auth_user,
+			    CURL *curl, void *data, bool *json_result)
 {
 	char *hexstr = NULL;
 	bool rc = false;
@@ -360,7 +366,7 @@ static bool submit_bin_work(const char *remote_host, CURL *curl,
 		goto out;
 	}
 
-	rc = submit_work(remote_host, curl, hexstr, json_result);
+	rc = submit_work(remote_host, auth_user, curl, hexstr, json_result);
 
 	free(hexstr);
 
@@ -375,7 +381,8 @@ bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 
 	if (msgsz != 128)
 		goto err_out;
-	if (!submit_bin_work(cli->addr_host, srv.curl, cli->msg, &json_res)) {
+	if (!submit_bin_work(cli->addr_host, cli->auth_user,
+			     srv.curl, cli->msg, &json_res)) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
 	}
@@ -406,7 +413,8 @@ static json_t *json_rpc_errobj(int code, const char *msg)
 }
 
 bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
-			 void **reply, unsigned int *reply_len)
+		  const char *username,
+		  void **reply, unsigned int *reply_len)
 {
 	const char *method;
 	json_t *params, *id, *resp;
@@ -481,7 +489,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 			goto out;
 		}
 
-		rpc_rc = submit_work(req->remote_host, srv.curl,
+		rpc_rc = submit_work(req->remote_host, username, srv.curl,
 				     soln_str, &json_result);
 
 		if (rpc_rc) {
