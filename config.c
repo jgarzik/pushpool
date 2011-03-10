@@ -28,6 +28,8 @@
 #include <jansson.h>
 #include "server.h"
 
+#define EASY_TARGET "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000"
+
 static void parse_listen(const json_t *listeners)
 {
 	int i, len;
@@ -148,6 +150,9 @@ void read_config(void)
 		applog(LOG_ERR, "OOM");
 		exit(1);
 	}
+
+	if (json_is_true(json_object_get(jcfg, "rpc.target.rewrite")))
+		srv.easy_target = json_string(EASY_TARGET);
 
 	if (!srv.pid_file) {
 		if (!(srv.pid_file = strdup("/var/run/pushpoold.pid"))) {

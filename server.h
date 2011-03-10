@@ -106,6 +106,7 @@ struct server {
 
 	char			*rpc_url;
 	char			*rpc_userpass;
+	json_t			*easy_target;
 
 	struct hist		*hist;
 

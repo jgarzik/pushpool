@@ -1153,6 +1153,8 @@ err_out:
 			close(srv.pid_fd);
 		free(srv.pid_file);
 
+		json_decref(srv.easy_target);
+
 		free(srv.ourhost);
 		free(srv.rpc_url);
 		free(srv.rpc_userpass);

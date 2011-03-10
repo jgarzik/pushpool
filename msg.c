@@ -101,12 +101,27 @@ static unsigned int rpcid = 1;
 static json_t *obtain_work(void)
 {
 	char s[80];
+	json_t *val, *result;
 
 	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
 		rpcid++);
 
 	/* issue JSON-RPC request */
-	return json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+	val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+	if (!val)
+		return NULL;
+	
+	result = json_object_get(val, "result");
+	if (!json_is_object(result)) {
+		json_decref(val);
+		return NULL;
+	}
+
+	/* rewrite target (pool server mode), if requested in config file */
+	if (srv.easy_target)
+		json_object_set(result, "target", srv.easy_target);
+
+	return val;
 }
 
 static int check_hash(const char *remote_host, const char *data_str)
@@ -183,6 +198,10 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	       *json_result ? "TRUE" : "false");
 
 	json_decref(val);
+
+	/* if pool server mode, return success even if result==false */
+	if (srv.easy_target)
+		*json_result = true;
 
 out:
 	return rc;
