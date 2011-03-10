@@ -1034,7 +1034,7 @@ static int main_loop(void)
 int main (int argc, char *argv[])
 {
 	error_t aprc;
-	int rc = 1;
+	int rc = 1, sqlrc;
 	struct list_head *tmpl;
 
 	INIT_LIST_HEAD(&srv.listeners);
@@ -1122,11 +1122,22 @@ int main (int argc, char *argv[])
 			goto err_out_listen;
 	}
 
+	sqlrc = sqlite3_open_v2(srv.db_path, &srv.db,
+				SQLITE_OPEN_READONLY, NULL);
+	if (sqlrc != SQLITE_OK) {
+		applog(LOG_ERR, "sqlite3_open(%s) failed: %d",
+		       srv.db_path, sqlrc);
+		goto err_out_listen;
+	}
+
 	applog(LOG_INFO, "initialized");
 
 	rc = main_loop();
 
 	applog(LOG_INFO, "shutting down");
+
+	if (sqlite3_close(srv.db) != SQLITE_OK)
+		applog(LOG_WARNING, "db close failed");
 
 err_out_listen:
 	/* we ignore closing sockets, as process exit does that for us */
@@ -1154,6 +1165,8 @@ err_out:
 		free(srv.pid_file);
 
 		json_decref(srv.easy_target);
+
+		free(srv.db_path);
 
 		free(srv.ourhost);
 		free(srv.rpc_url);

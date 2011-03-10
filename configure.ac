@@ -38,6 +38,8 @@ AC_CHECK_LIB(jansson, json_loads, JANSSON_LIBS=-ljansson,
   [AC_MSG_ERROR([Missing required jansson library])])
 AC_CHECK_LIB(crypto, MD5_Init, CRYPTO_LIBS=-lcrypto,
   [AC_MSG_ERROR([Missing required OpenSSL library])])
+AC_CHECK_LIB(sqlite3, sqlite3_open_v2, SQLITE3_LIBS=-lsqlite3,
+  [AC_MSG_ERROR([Missing required SQLite 3.x library])])
 
 PKG_PROG_PKG_CONFIG()
 
@@ -50,6 +52,7 @@ AC_SUBST(PTHREAD_FLAGS)
 AC_SUBST(PTHREAD_LIBS)
 AC_SUBST(CRYPTO_LIBS)
 AC_SUBST(Z_LIBS)
+AC_SUBST(SQLITE3_LIBS)
 
 AC_CONFIG_FILES([
 	Makefile

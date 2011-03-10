@@ -154,6 +154,13 @@ void read_config(void)
 	if (json_is_true(json_object_get(jcfg, "rpc.target.rewrite")))
 		srv.easy_target = json_string(EASY_TARGET);
 
+	tmp_str = json_string_value(json_object_get(jcfg, "database.path"));
+	if (!tmp_str) {
+		applog(LOG_ERR, "error: no db path specified");
+		exit(1);
+	}
+	srv.db_path = strdup(tmp_str);
+
 	if (!srv.pid_file) {
 		if (!(srv.pid_file = strdup("/var/run/pushpoold.pid"))) {
 			applog(LOG_ERR, "no core");

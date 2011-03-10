@@ -26,6 +26,7 @@
 #include <netinet/in.h>
 #include <jansson.h>
 #include <curl/curl.h>
+#include <sqlite3.h>
 #include "elist.h"
 #include "ubbp.h"
 #include "protocol.h"
@@ -107,6 +108,9 @@ struct server {
 	char			*rpc_url;
 	char			*rpc_userpass;
 	json_t			*easy_target;
+
+	sqlite3			*db;
+	char			*db_path;
 
 	struct hist		*hist;
 

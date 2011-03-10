@@ -43,12 +43,40 @@ static const char *bc_err_str[] = {
 
 char *pwdb_lookup(const char *user)
 {
+	static const char *sql =
+		"SELECT password FROM pool_worker WHERE username = ?";
+	sqlite3_stmt *stmt = NULL;
+	int rc, step = 0;
+	char *password = NULL;
+
 	if (!user)
 		return NULL;
-	if (strcmp(user, "testuser"))
-		return NULL;
-	
-	return strdup("testpass");
+
+	step++;
+	rc = sqlite3_prepare_v2(srv.db, sql, strlen(sql), &stmt, NULL);
+	if (rc != SQLITE_OK)
+		goto err_out;
+
+	step++;
+	rc = sqlite3_bind_text(stmt, 1, user, strlen(user), SQLITE_STATIC);
+	if (rc != SQLITE_OK)
+		goto err_out;
+
+	step++;
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW)
+		password = strdup((char *)sqlite3_column_text(stmt, 0));
+	else if (rc != SQLITE_DONE)
+		goto err_out;
+
+	sqlite3_finalize(stmt);
+	return password;
+
+err_out:
+	applog(LOG_ERR, "pwdb sql step %d failed: %s",
+	       step, sqlite3_errmsg(srv.db));
+	sqlite3_finalize(stmt);
+	return NULL;
 }
 
 static bool jobj_binary(const json_t *obj, const char *key,
