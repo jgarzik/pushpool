@@ -1,0 +1,8 @@
+
+Checks to add to submitted work
+-------------------------------
+does submitted prevHash match current prevHash?  if not, stale block.
+
+verify that submitted work matches a work passed previously to
+that worker (save for fields that may be changed, such as nonce)
+
