@@ -98,6 +98,17 @@ err_out:
 
 static unsigned int rpcid = 1;
 
+static json_t *obtain_work(void)
+{
+	char s[80];
+
+	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
+		rpcid++);
+
+	/* issue JSON-RPC request */
+	return json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+}
+
 static int check_hash(const char *remote_host, const char *data_str)
 {
 	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
@@ -315,7 +326,6 @@ bool cli_op_config(struct client *cli, const json_t *cfg)
 bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 {
 	json_t *val;
-	char s[128];
 	int err_code = BC_ERR_INVALID;
 	struct ubbp_header *msg_hdr;
 	struct bc_work work;
@@ -323,14 +333,11 @@ bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 	size_t msg_len;
 	bool rc;
 
-	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
-		rpcid++);
-
 	if (msgsz > 0)
 		return false;
 
-	/* issue JSON-RPC request */
-	val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+	/* obtain work from upstream server */
+	val = obtain_work();
 	if (!val) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
@@ -442,14 +449,9 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	/* get new work */
 	if (n_params == 0) {
 		json_t *val, *result;
-		char s[128];
 
-		sprintf(s,
-		     "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
-			rpcid++);
-
-		/* issue JSON-RPC request */
-		val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+		/* obtain work from upstream server */
+		val = obtain_work();
 		if (!val) {
 			json_object_set_new(resp, "result", json_null());
 			json_object_set_new(resp, "error",
