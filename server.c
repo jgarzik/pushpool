@@ -605,14 +605,21 @@ static void reqlog(const char *rem_host, const char *username,
 	struct timeval tv = { };
 	char *f;
 	ssize_t wrc;
+	struct tm tm;
 
 	if (srv.req_fd < 0)
 		return;
 
 	gettimeofday(&tv, NULL);
+	gmtime_r(&tv.tv_sec, &tm);
 
-	asprintf(&f, "[%llu.%llu] %s %s \"%s\"\n",
-		(unsigned long long) tv.tv_sec,
+	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s \"%s\"\n",
+		tm.tm_year + 1900,
+		tm.tm_mon,
+		tm.tm_mday,
+		tm.tm_hour,
+		tm.tm_min,
+		tm.tm_sec,
 		(unsigned long long) tv.tv_usec,
 	        (rem_host && *rem_host) ? rem_host : "-",
 	        (username && *username) ? username : "-",
@@ -632,14 +639,21 @@ void sharelog(const char *rem_host, const char *username,
 	struct timeval tv = { };
 	char *f;
 	ssize_t wrc;
+	struct tm tm;
 
 	if (srv.share_fd < 0)
 		return;
 
 	gettimeofday(&tv, NULL);
+	gmtime_r(&tv.tv_sec, &tm);
 
-	asprintf(&f, "[%llu.%llu] %s %s %s %s %s\n",
-		(unsigned long long) tv.tv_sec,
+	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s\n",
+		tm.tm_year + 1900,
+		tm.tm_mon,
+		tm.tm_mday,
+		tm.tm_hour,
+		tm.tm_min,
+		tm.tm_sec,
 		(unsigned long long) tv.tv_usec,
 	        (rem_host && *rem_host) ? rem_host : "-",
 	        (username && *username) ? username : "-",
