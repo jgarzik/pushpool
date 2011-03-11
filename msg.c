@@ -221,9 +221,11 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 
 	sharelog(remote_host, auth_user, *json_result ? "Y" : "N", hexstr);
 
-	applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  Result: %s",
-	       remote_host,
-	       *json_result ? "TRUE" : "false");
+	if (debugging > 1)
+		applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  "
+		       "Result: %s",
+		       remote_host,
+		       *json_result ? "TRUE" : "false");
 
 	json_decref(val);
 
