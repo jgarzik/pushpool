@@ -626,6 +626,7 @@ static void reqlog(const char *rem_host, const char *username,
 }
 
 void sharelog(const char *rem_host, const char *username,
+	      const char *our_result,
 	      const char *upstream_result, const char *solution)
 {
 	struct timeval tv = { };
@@ -637,11 +638,12 @@ void sharelog(const char *rem_host, const char *username,
 
 	gettimeofday(&tv, NULL);
 
-	asprintf(&f, "[%llu.%llu] %s %s %s %s\n",
+	asprintf(&f, "[%llu.%llu] %s %s %s %s %s\n",
 		(unsigned long long) tv.tv_sec,
 		(unsigned long long) tv.tv_usec,
 	        (rem_host && *rem_host) ? rem_host : "-",
 	        (username && *username) ? username : "-",
+	        (our_result && *our_result) ? our_result : "-",
 	        (upstream_result && *upstream_result) ? upstream_result : "-",
 		(solution && *solution) ? solution : "-");
 

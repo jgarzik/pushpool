@@ -143,6 +143,7 @@ extern int debugging;
 extern bool use_syslog;
 extern struct server srv;
 extern void sharelog(const char *rem_host, const char *username,
+		     const char *,
 		     const char *, const char *);
 extern bool cjson_encode(unsigned char op, const char *obj_unc,
 		  void **msg_out, size_t *msglen_out);

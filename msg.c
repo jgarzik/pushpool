@@ -200,9 +200,15 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	bool rc = false;
 	int check_rc;
 
+	/* validate submitted work */
 	check_rc = check_hash(remote_host, hexstr);
-	if (check_rc < 0)
+	if (check_rc < 0)	/* internal failure */
 		goto out;
+	if (check_rc == 0) {	/* invalid hash */
+		*json_result = false;
+		sharelog(remote_host, auth_user, "N", "n/a", hexstr);
+		return true;
+	}
 
 	/* build JSON-RPC request */
 	sprintf(s,
@@ -219,7 +225,9 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	*json_result = json_is_true(json_object_get(val, "result"));
 	rc = true;
 
-	sharelog(remote_host, auth_user, *json_result ? "Y" : "N", hexstr);
+	sharelog(remote_host, auth_user,
+		 srv.easy_target ? "Y" : *json_result ? "Y" : "N",
+		 *json_result ? "Y" : "N", hexstr);
 
 	if (debugging > 1)
 		applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  "
