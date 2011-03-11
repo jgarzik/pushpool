@@ -237,6 +237,9 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 
 	json_decref(val);
 
+	if (*json_result)
+		applog(LOG_INFO, "PROOF-OF-WORK found");
+
 	/* if pool server mode, return success even if result==false */
 	if (srv.easy_target)
 		*json_result = true;
