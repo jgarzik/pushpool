@@ -613,9 +613,6 @@ static void reqlog(const char *rem_host, const char *username,
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
 
-	if (rem_host && *rem_host && !strncmp(rem_host, "::ffff:", 7))
-		rem_host += 7;
-
 	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s \"%s\"\n",
 		tm.tm_year + 1900,
 		tm.tm_mon,
@@ -649,9 +646,6 @@ void sharelog(const char *rem_host, const char *username,
 
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
-
-	if (rem_host && *rem_host && !strncmp(rem_host, "::ffff:", 7))
-		rem_host += 7;
 
 	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s\n",
 		tm.tm_year + 1900,
