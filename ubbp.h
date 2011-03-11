@@ -1,7 +1,7 @@
 #ifndef __UBBP_H__
 #define __UBBP_H__
 
-/* 
+/*
 
    Universal Base Binary Protocol (UBBP) - a universal message header
 

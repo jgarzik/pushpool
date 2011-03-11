@@ -138,7 +138,7 @@ static json_t *obtain_work(void)
 	val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
 	if (!val)
 		return NULL;
-	
+
 	result = json_object_get(val, "result");
 	if (!json_is_object(result)) {
 		json_decref(val);
@@ -169,7 +169,7 @@ static int check_hash(const char *remote_host, const char *data_str)
 
 	for (i = 0; i < 128/4; i++)
 		data32[i] = bswap_32(data32[i]);
-	
+
 	SHA256(data, 80, hash1);
 	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
 
@@ -188,7 +188,7 @@ static int check_hash(const char *remote_host, const char *data_str)
 		applog(LOG_ERR, "hist_add OOM");
 		return -1;		/* error; failure */
 	}
-	
+
 	return 1;			/* work is valid */
 }
 
@@ -472,7 +472,7 @@ static json_t *json_rpc_errobj(int code, const char *msg)
 
 	json_object_set_new(err, "code", json_integer(code));
 	json_object_set_new(err, "message", json_string(msg));
-	
+
 	return err;
 }
 
@@ -566,7 +566,7 @@ out:
 	resp_str = json_dumps(resp, JSON_COMPACT);
 	if (!resp_str)
 		goto out_decref;
-	
+
 	*reply = resp_str;
 	*reply_len = strlen(resp_str);
 

@@ -52,7 +52,7 @@ bool hist_add(struct hist *hist, const unsigned char *hash)
 	ent = calloc(1, sizeof(*ent));
 	if (!ent)
 		return false;
-	
+
 	memcpy(ent->hash, hash, SHA256_DIGEST_LENGTH);
 	INIT_LIST_HEAD(&ent->log_node);
 	INIT_LIST_HEAD(&ent->tbl_node);
@@ -92,7 +92,7 @@ void hist_free(struct hist *hist)
 
 	while (hist->log_sz > 0)
 		hist_expire(hist);
-	
+
 	memset(hist, 0, sizeof(*hist));		/* poison */
 	free(hist);
 }
@@ -110,7 +110,7 @@ struct hist *hist_alloc(void)
 		INIT_LIST_HEAD(&hist->tbl[i].chain);
 
 	INIT_LIST_HEAD(&hist->log);
-	
+
 	return hist;
 }
 

@@ -80,7 +80,7 @@ struct htab *htab_new(htab_hash_fn hash_fn,
 	htab->cmp_fn = cmp_fn;
 	htab->free_key_fn = free_key_fn;
 	htab->free_value_fn = free_value_fn;
-	
+
 	n_buckets = htab_sz(htab);
 
 	/* alloc & init hash table buckets */
@@ -141,7 +141,7 @@ void htab_free(struct htab *htab)
 {
 	if (!htab)
 		return;
-	
+
 	/* free all hash entries */
 	htab_clear(htab);
 
@@ -216,7 +216,7 @@ bool htab_put(struct htab *htab, void *key, void *value)
 	ent = calloc(1, sizeof(*ent));
 	if (!ent)
 		return false;
-	
+
 	ent->key = key;
 	ent->value = value;
 	ent->hash = hash;

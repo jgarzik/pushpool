@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_H__
 #define __PROTOCOL_H__
 
-/* 
+/*
 
    bitcoin binary protocol
 

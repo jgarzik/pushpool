@@ -171,7 +171,7 @@ static void databuf_free(struct data_buffer *db)
 {
 	if (!db)
 		return;
-	
+
 	free(db->buf);
 
 	memset(db, 0, sizeof(*db));
@@ -301,7 +301,7 @@ json_t *json_rpc_call(CURL *curl, const char *url,
 		fprintf(stderr, "JSON-RPC call failed: %s\n", s);
 
 		free(s);
-			
+
 		goto err_out;
 	}
 
@@ -323,7 +323,7 @@ char *bin2hex(unsigned char *p, size_t len)
 	char *s = malloc((len * 2) + 1);
 	if (!s)
 		return NULL;
-	
+
 	for (i = 0; i < len; i++)
 		sprintf(s + (i * 2), "%02x", (unsigned int) p[i]);
 

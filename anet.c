@@ -82,7 +82,7 @@ bool tcp_read_inf(struct tcp_read_state *rst,
 		     void *buf, unsigned int buflen,
 		     int (*check_compl_cb)(void *, void *,
 		     			   unsigned int, unsigned int *),
-		     bool (*cb)(void *rst_priv, void *priv, 
+		     bool (*cb)(void *rst_priv, void *priv,
 		     		unsigned int buflen, bool success),
 		     void *priv)
 {
@@ -116,7 +116,7 @@ static bool tcp_read_slop_append(struct tcp_read_state *rst, const void *buf,
 	new_slop = realloc(rst->slop, new_slop_len);
 	if (!new_slop)
 		return false;
-	
+
 	memcpy(new_slop + old_slop_len, buf, buflen);
 
 	rst->slop = new_slop;
@@ -194,7 +194,7 @@ static int tcp_read_exec(struct tcp_read_state *rst, struct tcp_read *rd)
 			rd->curlen -= overflow;
 		}
 	}
-	
+
 	/* otherwise, buffer-full indicates completion */
 	else {
 		if (rd->curlen < rd->len)	/* incomplete, wait for more */
