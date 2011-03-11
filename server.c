@@ -250,7 +250,7 @@ static void cli_free(struct client *cli)
 {
 	if (!cli)
 		return;
-	
+
 	if (cli->ev_mask && (event_del(&cli->ev) < 0))
 		applog(LOG_ERR, "TCP cli poll del failed");
 
@@ -266,7 +266,7 @@ static void cli_free(struct client *cli)
 	tcp_read_free(&cli->rst);
 
 	free(cli->msg);
-	
+
 	memset(cli, 0, sizeof(*cli));	/* poison */
 	free(cli);
 }
@@ -283,7 +283,7 @@ static struct client *cli_alloc(int fd, struct sockaddr_in6 *addr,
 	cli->fd = fd;
 	memcpy(&cli->addr, addr, addrlen);
 	tcp_read_init(&cli->rst, cli->fd, cli);
-	
+
 	return cli;
 }
 
@@ -456,7 +456,7 @@ static bool cli_read_hdr(void *rst_priv, void *priv,
 	cli->msg = malloc(size);
 	if (!cli->msg)
 		return false;
-	
+
 	return tcp_read(&cli->rst, cli->msg, size, cli_read_msg, NULL);
 }
 
@@ -613,6 +613,9 @@ static void reqlog(const char *rem_host, const char *username,
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
 
+	if (rem_host && *rem_host && !strncmp(rem_host, "::ffff:", 7))
+		rem_host += 7;
+
 	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s \"%s\"\n",
 		tm.tm_year + 1900,
 		tm.tm_mon,
@@ -646,6 +649,9 @@ void sharelog(const char *rem_host, const char *username,
 
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
+
+	if (rem_host && *rem_host && !strncmp(rem_host, "::ffff:", 7))
+		rem_host += 7;
 
 	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s\n",
 		tm.tm_year + 1900,
@@ -772,7 +778,7 @@ static void net_sock_free(struct server_socket *sock)
 {
 	if (!sock)
 		return;
-	
+
 	list_del_init(&sock->sockets_node);
 
 	if (sock->http)
@@ -782,7 +788,7 @@ static void net_sock_free(struct server_socket *sock)
 
 	if (sock->fd >= 0)
 		close(sock->fd);
-	
+
 	memset(sock, 0, sizeof(*sock));	/* poison */
 	free(sock);
 }
@@ -864,7 +870,7 @@ static int net_open_socket(const struct listen_cfg *cfg,
 			evhttp_free(sock->http);
 			goto err_out_sock;
 		}
-		
+
 		evhttp_set_cb(sock->http, "/", http_srv_event, sock);
 	} else {
 		event_set(&sock->ev, fd, EV_READ | EV_PERSIST,
@@ -931,7 +937,7 @@ static int net_open_known(const struct listen_cfg *cfg)
 			continue;
 
 		rc = net_open_socket(cfg, res->ai_family, res->ai_socktype,
-				     res->ai_protocol, 
+				     res->ai_protocol,
 				     res->ai_addrlen, res->ai_addr);
 		if (rc < 0)
 			goto err_out;
@@ -993,21 +999,21 @@ static int log_reopen(int fd, const char *fn)
 {
 	if (!fn || !*fn)
 		return -1;
-	
+
 	if ((fd >= 0) && (close(fd) < 0))
 		syslogerr(fn);
-	
+
 	fd = open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
 	if (fd < 0)
 		syslogerr(fn);
-	
+
 	return fd;
 }
 
 static void hup_signal(int signo)
 {
 	applog(LOG_INFO, "HUP signal received, reopening logs");
-	
+
 	srv.req_fd = log_reopen(srv.req_fd, srv.req_log);
 	srv.share_fd = log_reopen(srv.share_fd, srv.share_log);
 }
@@ -1043,7 +1049,7 @@ static int main_loop(void)
 			stats_dump();
 		}
 	}
-	
+
 	return rc;
 }
 
