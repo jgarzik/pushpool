@@ -633,8 +633,8 @@ static void reqlog(const char *rem_host, const char *username,
 }
 
 void sharelog(const char *rem_host, const char *username,
-	      const char *our_result,
-	      const char *upstream_result, const char *solution)
+	      const char *our_result, const char *upstream_result,
+	      const char *reason, const char *solution)
 {
 	struct timeval tv = { };
 	char *f;
@@ -647,7 +647,7 @@ void sharelog(const char *rem_host, const char *username,
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
 
-	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s\n",
+	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s %s\n",
 		tm.tm_year + 1900,
 		tm.tm_mon,
 		tm.tm_mday,
@@ -659,6 +659,7 @@ void sharelog(const char *rem_host, const char *username,
 	        (username && *username) ? username : "-",
 	        (our_result && *our_result) ? our_result : "-",
 	        (upstream_result && *upstream_result) ? upstream_result : "-",
+	        (reason && *reason) ? reason : "-",
 		(solution && *solution) ? solution : "-");
 
 	wrc = write(srv.share_fd, f, strlen(f));

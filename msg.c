@@ -152,7 +152,8 @@ static json_t *obtain_work(void)
 	return val;
 }
 
-static int check_hash(const char *remote_host, const char *data_str)
+static int check_hash(const char *remote_host, const char *data_str,
+		      const char **reason_out)
 {
 	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
 	uint32_t *hash32 = (uint32_t *) hash;
@@ -174,14 +175,12 @@ static int check_hash(const char *remote_host, const char *data_str)
 	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
 
 	if (hash32[7] != 0) {
-		applog(LOG_WARNING, "[%s] submitted work invalid, H != 0",
-			remote_host);
+		*reason_out = "H-not-zero";
 		return 0;		/* work is invalid */
 	}
 
 	if (hist_lookup(srv.hist, hash)) {
-		applog(LOG_WARNING, "[%s] submitted duplicate work",
-			remote_host);
+		*reason_out = "duplicate";
 		return 0;		/* work is invalid */
 	}
 	if (!hist_add(srv.hist, hash)) {
@@ -199,14 +198,15 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	char s[256 + 80];
 	bool rc = false;
 	int check_rc;
+	const char *reason = NULL;
 
 	/* validate submitted work */
-	check_rc = check_hash(remote_host, hexstr);
+	check_rc = check_hash(remote_host, hexstr, &reason);
 	if (check_rc < 0)	/* internal failure */
 		goto out;
 	if (check_rc == 0) {	/* invalid hash */
 		*json_result = false;
-		sharelog(remote_host, auth_user, "N", "n/a", hexstr);
+		sharelog(remote_host, auth_user, "N", "n/a", reason, hexstr);
 		return true;
 	}
 
@@ -227,7 +227,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 
 	sharelog(remote_host, auth_user,
 		 srv.easy_target ? "Y" : *json_result ? "Y" : "N",
-		 *json_result ? "Y" : "N", hexstr);
+		 *json_result ? "Y" : "N", NULL, hexstr);
 
 	if (debugging > 1)
 		applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  "
