@@ -263,7 +263,7 @@ static int check_hash(const char *remote_host, const char *auth_user,
 	uint32_t *hash32 = (uint32_t *) hash;
 	unsigned char data[128];
 	uint32_t *data32 = (uint32_t *) data;
-	bool rc;
+	bool rc, better_hash = false;
 	int i;
 
 	rc = hex2bin(data, data_str, sizeof(data));
@@ -291,6 +291,8 @@ static int check_hash(const char *remote_host, const char *auth_user,
 		*reason_out = "H-not-zero";
 		return 0;		/* work is invalid */
 	}
+	if (hash[27] == 0)
+		better_hash = true;
 
 	if (hist_lookup(srv.hist, hash)) {
 		*reason_out = "duplicate";
@@ -301,7 +303,7 @@ static int check_hash(const char *remote_host, const char *auth_user,
 		return -1;		/* error; failure */
 	}
 
-	return 1;			/* work is valid */
+	return better_hash ? 2 : 1;			/* work is valid */
 }
 
 static bool submit_work(const char *remote_host, const char *auth_user,
@@ -320,6 +322,15 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	if (check_rc == 0) {	/* invalid hash */
 		*json_result = false;
 		sharelog(remote_host, auth_user, "N", "n/a", reason, hexstr);
+		return true;
+	}
+
+	/* if hash is sufficient for share, but not target,
+	 * don't bother submitting to bitcoind
+	 */
+	if (srv.easy_target && check_rc == 1) {
+		*json_result = true;
+		sharelog(remote_host, auth_user, "Y", "n/a", NULL, hexstr);
 		return true;
 	}
 
