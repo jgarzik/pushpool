@@ -126,7 +126,7 @@ err_out:
 
 static unsigned int rpcid = 1;
 
-static json_t *obtain_work(void)
+static json_t *get_work(const char *auth_user)
 {
 	char s[80];
 	json_t *val, *result;
@@ -152,8 +152,8 @@ static json_t *obtain_work(void)
 	return val;
 }
 
-static int check_hash(const char *remote_host, const char *data_str,
-		      const char **reason_out)
+static int check_hash(const char *remote_host, const char *auth_user,
+		      const char *data_str, const char **reason_out)
 {
 	unsigned char hash[SHA256_DIGEST_LENGTH], hash1[SHA256_DIGEST_LENGTH];
 	uint32_t *hash32 = (uint32_t *) hash;
@@ -201,7 +201,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	const char *reason = NULL;
 
 	/* validate submitted work */
-	check_rc = check_hash(remote_host, hexstr, &reason);
+	check_rc = check_hash(remote_host, auth_user, hexstr, &reason);
 	if (check_rc < 0)	/* internal failure */
 		goto out;
 	if (check_rc == 0) {	/* invalid hash */
@@ -397,7 +397,7 @@ bool cli_op_work_get(struct client *cli, unsigned int msgsz)
 		return false;
 
 	/* obtain work from upstream server */
-	val = obtain_work();
+	val = get_work(cli->auth_user);
 	if (!val) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
@@ -511,7 +511,7 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 		json_t *val, *result;
 
 		/* obtain work from upstream server */
-		val = obtain_work();
+		val = get_work(username);
 		if (!val) {
 			json_object_set_new(resp, "result", json_null());
 			json_object_set_new(resp, "error",
