@@ -31,6 +31,7 @@
 #include "ubbp.h"
 #include "protocol.h"
 #include "anet.h"
+#include "htab.h"
 
 #define PROGRAM_NAME "pushpoold"
 
@@ -113,6 +114,10 @@ struct server {
 	char			*db_path;
 
 	struct hist		*hist;
+	unsigned char		cur_prevhash[32];
+
+	struct htab		*workers;
+	struct list_head	work_log;
 
 	struct list_head	listeners;
 	struct list_head	sockets;	/* points into listeners */
@@ -125,6 +130,7 @@ extern void read_config(void);
 
 /* msg.c */
 extern char *pwdb_lookup(const char *user);
+extern void worker_log_expire(time_t expire_time);
 extern bool cli_op_login(struct client *cli, const json_t *obj,
 			 unsigned int msgsz);
 extern bool cli_op_config(struct client *cli, const json_t *obj);

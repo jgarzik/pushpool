@@ -31,6 +31,25 @@
 #include <syslog.h>
 #include "server.h"
 
+struct worker {
+	char			username[64];
+
+	struct list_head	log;
+};
+
+struct work_ent {
+	char			data[128];
+
+	time_t			timestamp;
+
+	struct list_head	log_node;
+	struct list_head	srv_log_node;
+};
+
+enum {
+	WORK_EXPIRE_INT		= 120,		/* expire older than X secs */
+};
+
 static const char *bc_err_str[] = {
 	[BC_ERR_NONE] = "no error (success)",
 	[BC_ERR_INVALID] = "invalid parameter",
@@ -77,6 +96,80 @@ err_out:
 	       step, sqlite3_errmsg(srv.db));
 	sqlite3_finalize(stmt);
 	return NULL;
+}
+
+void worker_log_expire(time_t expire_time)
+{
+	struct work_ent *ent, *iter;
+
+	list_for_each_entry_safe(ent, iter, &srv.work_log, srv_log_node) {
+		if (ent->timestamp > expire_time)
+			break;
+
+		list_del(&ent->srv_log_node);
+		list_del(&ent->log_node);
+		free(ent);
+	}
+}
+
+static void worker_log(const char *username, const unsigned char *data)
+{
+	struct worker *worker;
+	struct work_ent *ent;
+	time_t now = time(NULL);
+
+	worker = htab_get(srv.workers, username);
+	if (!worker) {
+		worker = calloc(1, sizeof(*worker));
+		if (!worker)
+			return;
+
+		strncpy(worker->username, username, sizeof(worker->username));
+		INIT_LIST_HEAD(&worker->log);
+
+		if (!htab_put(srv.workers, worker->username, worker))
+			return;
+	}
+
+	ent = calloc(1, sizeof(*ent));
+	if (!ent)
+		return;
+
+	memcpy(ent->data, data, sizeof(ent->data));
+	ent->timestamp = now;
+	INIT_LIST_HEAD(&ent->log_node);
+	INIT_LIST_HEAD(&ent->srv_log_node);
+
+	list_add_tail(&ent->log_node, &worker->log);
+	list_add_tail(&ent->srv_log_node, &srv.work_log);
+
+	worker_log_expire(now - WORK_EXPIRE_INT);
+}
+
+static bool work_in_log(const char *username, const unsigned char *data)
+{
+	struct worker *worker;
+	struct work_ent *ent;
+
+	worker = htab_get(srv.workers, username);
+	if (!worker)
+		return false;
+	
+	list_for_each_entry(ent, &worker->log, log_node) {
+		/* check submitted block matches sent block,
+		 * excluding final 4 bytes (nonce)
+		 */
+		if (!memcmp(ent->data, data, 80 - 4))
+			return true;
+	}
+
+	return false;
+}
+
+static bool stale_work(const unsigned char *data)
+{
+	int cmp = memcmp(data + 4, srv.cur_prevhash, sizeof(srv.cur_prevhash));
+	return (cmp == 0) ? false : true;
 }
 
 static bool jobj_binary(const json_t *obj, const char *key,
@@ -129,6 +222,8 @@ static unsigned int rpcid = 1;
 static json_t *get_work(const char *auth_user)
 {
 	char s[80];
+	unsigned char data[128];
+	const char *data_str;
 	json_t *val, *result;
 
 	sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",
@@ -139,11 +234,20 @@ static json_t *get_work(const char *auth_user)
 	if (!val)
 		return NULL;
 
+	/* decode data field, implicitly verifying 'result' is an object */
 	result = json_object_get(val, "result");
-	if (!json_is_object(result)) {
+	data_str = json_string_value(json_object_get(result, "data"));
+	if (!data_str ||
+	    !hex2bin(data, data_str, sizeof(data))) {
 		json_decref(val);
 		return NULL;
 	}
+
+	/* store most recently seen prevhash */
+	memcpy(srv.cur_prevhash, data + 4, sizeof(srv.cur_prevhash));
+
+	/* log work unit as having been sent to associated worker */
+	worker_log(auth_user, data);
 
 	/* rewrite target (pool server mode), if requested in config file */
 	if (srv.easy_target)
@@ -176,6 +280,15 @@ static int check_hash(const char *remote_host, const char *auth_user,
 
 	if (hash32[7] != 0) {
 		*reason_out = "H-not-zero";
+		return 0;		/* work is invalid */
+	}
+
+	if (stale_work(data)) {
+		*reason_out = "stale";
+		return 0;		/* work is invalid */
+	}
+	if (!work_in_log(auth_user, data)) {
+		*reason_out = "work-not-in-log";
 		return 0;		/* work is invalid */
 	}
 

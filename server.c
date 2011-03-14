@@ -1056,6 +1056,7 @@ int main (int argc, char *argv[])
 
 	INIT_LIST_HEAD(&srv.listeners);
 	INIT_LIST_HEAD(&srv.sockets);
+	INIT_LIST_HEAD(&srv.work_log);
 
 	/* isspace() and strcasecmp() consistency requires this */
 	setlocale(LC_ALL, "C");
@@ -1129,6 +1130,12 @@ int main (int argc, char *argv[])
 		goto err_out;
 	}
 
+	srv.workers = htab_str_new(false, true);
+	if (!srv.workers) {
+		applog(LOG_ERR, "workers htab init failed");
+		goto err_out;
+	}
+
 	/* set up server networking */
 	list_for_each(tmpl, &srv.listeners) {
 		struct listen_cfg *tmpcfg;
@@ -1184,6 +1191,9 @@ err_out:
 		json_decref(srv.easy_target);
 
 		free(srv.db_path);
+
+		worker_log_expire(time(NULL) + 1);
+		htab_free(srv.workers);
 
 		free(srv.ourhost);
 		free(srv.rpc_url);
