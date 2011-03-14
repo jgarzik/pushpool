@@ -272,6 +272,15 @@ static int check_hash(const char *remote_host, const char *auth_user,
 		return -1;		/* error; failure */
 	}
 
+	if (stale_work(data)) {
+		*reason_out = "stale";
+		return 0;		/* work is invalid */
+	}
+	if (!work_in_log(auth_user, data)) {
+		*reason_out = "work-not-in-log";
+		return 0;		/* work is invalid */
+	}
+
 	for (i = 0; i < 128/4; i++)
 		data32[i] = bswap_32(data32[i]);
 
@@ -280,15 +289,6 @@ static int check_hash(const char *remote_host, const char *auth_user,
 
 	if (hash32[7] != 0) {
 		*reason_out = "H-not-zero";
-		return 0;		/* work is invalid */
-	}
-
-	if (stale_work(data)) {
-		*reason_out = "stale";
-		return 0;		/* work is invalid */
-	}
-	if (!work_in_log(auth_user, data)) {
-		*reason_out = "work-not-in-log";
 		return 0;		/* work is invalid */
 	}
 
