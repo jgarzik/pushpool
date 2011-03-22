@@ -133,6 +133,9 @@ void read_config(void)
 		}
 	}
 
+	if (json_is_true(json_object_get(jcfg, "longpoll.disable")))
+		srv.disable_lp = true;
+
 	tmp_str = json_string_value(json_object_get(jcfg, "rpc.url"));
 	if (!tmp_str) {
 		applog(LOG_ERR, "error: no RPC URL specified");

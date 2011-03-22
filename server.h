@@ -87,6 +87,12 @@ struct listen_cfg {
 	struct list_head	listeners_node;
 };
 
+struct genlist {
+	void			*data;
+	size_t			data_len;
+	struct list_head	node;
+};
+
 struct server {
 	unsigned long		flags;		/* SFL_xxx above */
 
@@ -118,6 +124,9 @@ struct server {
 
 	struct htab		*workers;
 	struct list_head	work_log;
+
+	struct list_head	lp_waiters;
+	bool			disable_lp;
 
 	struct list_head	listeners;
 	struct list_head	sockets;	/* points into listeners */

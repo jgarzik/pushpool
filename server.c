@@ -78,6 +78,8 @@ static const struct argp argp = { options, parse_opt, NULL, doc };
 
 static bool server_running = true;
 static bool dump_stats;
+static bool reopen_logs;
+static bool initiate_lp_flush;
 bool use_syslog = true;
 static bool strict_free = false;
 int debugging = 0;
@@ -669,9 +671,8 @@ void sharelog(const char *rem_host, const char *username,
 	free(f);
 }
 
-static void http_srv_event(struct evhttp_request *req, void *arg)
+static void http_handle_req(struct evhttp_request *req, bool longpoll)
 {
-	/* struct server_socket *sock = arg; */
 	const char *clen_str, *auth;
 	char *body_str;
 	char username[65] = "";
@@ -703,8 +704,6 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 		evhttp_send_reply(req, 403, "access forbidden", NULL);
 		return;
 	}
-
-	reqlog(req->remote_host, username, req->uri);
 
 	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
 		goto err_out_bad_req;
@@ -742,6 +741,8 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 
 	evhttp_add_header(req->output_headers,
 			  "Content-Type", "application/json");
+	if (!longpoll && !srv.disable_lp)
+		evhttp_add_header(req->output_headers, "X-Long-Polling", "/LP");
 	evhttp_send_reply(req, HTTP_OK, "ok", evbuf);
 
 	evbuffer_free(evbuf);
@@ -750,6 +751,71 @@ static void http_srv_event(struct evhttp_request *req, void *arg)
 
 err_out_bad_req:
 	evhttp_send_reply(req, HTTP_BADREQUEST, "invalid args", NULL);
+}
+
+static void flush_lp_waiters(void)
+{
+	struct genlist *tmp, *iter;
+
+	list_for_each_entry_safe(tmp, iter, &srv.lp_waiters, node) {
+		struct evhttp_request *req;
+
+		req = tmp->data;
+		http_handle_req(req, true);
+
+		list_del(&tmp->node);
+		memset(tmp, 0, sizeof(*tmp));
+		free(tmp);
+	}
+}
+
+static void __http_srv_event(struct evhttp_request *req, void *arg,
+			     bool longpoll)
+{
+	/* struct server_socket *sock = arg; */
+	const char *auth;
+	char username[65] = "";
+
+	/* validate user authorization */
+	auth = evhttp_find_header(req->input_headers, "Authorization");
+	if (!auth) {
+		reqlog(req->remote_host, username, req->uri);
+		evhttp_send_reply(req, 401, "not authorized", NULL);
+		return;
+	}
+	if (!valid_auth_hdr(auth, username)) {
+		reqlog(req->remote_host, username, req->uri);
+		evhttp_send_reply(req, 403, "access forbidden", NULL);
+		return;
+	}
+
+	reqlog(req->remote_host, username, req->uri);
+
+	/* if longpoll, don't respond now, queue onto list for later */
+	if (longpoll) {
+		struct genlist *gl = calloc(1, sizeof(*gl));
+		if (!gl)
+			return;
+
+		gl->data = req;
+		INIT_LIST_HEAD(&gl->node);
+
+		list_add_tail(&gl->node, &srv.lp_waiters);
+	}
+	
+	/* otherwise, handle immediately */
+	else
+		http_handle_req(req, false);
+}
+
+static void http_srv_event(struct evhttp_request *req, void *arg)
+{
+	__http_srv_event(req, arg, false);
+}
+
+static void http_srv_event_lp(struct evhttp_request *req, void *arg)
+{
+	__http_srv_event(req, arg, true);
 }
 
 static int net_write_port(const char *port_file, const char *port_str)
@@ -866,7 +932,11 @@ static int net_open_socket(const struct listen_cfg *cfg,
 			goto err_out_sock;
 		}
 
-		evhttp_set_cb(sock->http, "/", http_srv_event, sock);
+		evhttp_set_cb(sock->http, "/",
+			      http_srv_event, sock);
+		if (!srv.disable_lp)
+			evhttp_set_cb(sock->http, "/LP",
+				      http_srv_event_lp,sock);
 	} else {
 		event_set(&sock->ev, fd, EV_READ | EV_PERSIST,
 			  tcp_srv_event, sock);
@@ -1005,12 +1075,20 @@ static int log_reopen(int fd, const char *fn)
 	return fd;
 }
 
+static void usr1_signal(int signo)
+{
+	applog(LOG_INFO, "USR1 signal received, flushing LP waiters");
+
+	initiate_lp_flush = true;
+	event_loopbreak();
+}
+
 static void hup_signal(int signo)
 {
 	applog(LOG_INFO, "HUP signal received, reopening logs");
 
-	srv.req_fd = log_reopen(srv.req_fd, srv.req_log);
-	srv.share_fd = log_reopen(srv.share_fd, srv.share_log);
+	reopen_logs = true;
+	event_loopbreak();
 }
 
 static void stats_signal(int signo)
@@ -1043,6 +1121,15 @@ static int main_loop(void)
 			dump_stats = false;
 			stats_dump();
 		}
+		if (reopen_logs) {
+			reopen_logs = false;
+			srv.req_fd = log_reopen(srv.req_fd, srv.req_log);
+			srv.share_fd = log_reopen(srv.share_fd, srv.share_log);
+		}
+		if (initiate_lp_flush) {
+			initiate_lp_flush = false;
+			flush_lp_waiters();
+		}
 	}
 
 	return rc;
@@ -1057,6 +1144,7 @@ int main (int argc, char *argv[])
 	INIT_LIST_HEAD(&srv.listeners);
 	INIT_LIST_HEAD(&srv.sockets);
 	INIT_LIST_HEAD(&srv.work_log);
+	INIT_LIST_HEAD(&srv.lp_waiters);
 
 	/* isspace() and strcasecmp() consistency requires this */
 	setlocale(LC_ALL, "C");
@@ -1118,6 +1206,7 @@ int main (int argc, char *argv[])
 	/*
 	 * properly capture TERM and other signals
 	 */
+	signal(SIGUSR1, usr1_signal);
 	signal(SIGHUP, hup_signal);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, term_signal);
@@ -1171,6 +1260,7 @@ err_out:
 	closelog();
 
 	if (strict_free) {
+		flush_lp_waiters();
 		hist_free(srv.hist);
 		net_close();
 		curl_easy_cleanup(srv.curl);
