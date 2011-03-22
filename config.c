@@ -81,7 +81,7 @@ static void parse_listen(const json_t *listeners)
 
 void read_config(void)
 {
-	json_t *jcfg;
+	json_t *jcfg, *cred_expire;
 	json_error_t err;
 	const char *tmp_str, *rpcuser, *rpcpass;
 
@@ -135,6 +135,10 @@ void read_config(void)
 
 	if (json_is_true(json_object_get(jcfg, "longpoll.disable")))
 		srv.disable_lp = true;
+
+	cred_expire = json_object_get(jcfg, "auth.cred_cache.expire");
+	if (json_is_integer(cred_expire))
+		srv.cred_expire = json_integer_value(cred_expire);
 
 	tmp_str = json_string_value(json_object_get(jcfg, "rpc.url"));
 	if (!tmp_str) {

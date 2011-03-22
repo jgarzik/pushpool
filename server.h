@@ -41,6 +41,12 @@
 
 struct hist;
 
+struct user_cred {
+	char			username[64 + 1]; /* user */
+	char			*password;	/* alloc'd password */
+	time_t			exp_time;	/* expiration time (absolute) */
+};
+
 struct client {
 	struct sockaddr_in6	addr;		/* inet address */
 	char			addr_host[64];	/* ASCII version of inet addr */
@@ -124,6 +130,9 @@ struct server {
 
 	struct htab		*workers;
 	struct list_head	work_log;
+
+	struct htab		*cred_cache;
+	unsigned int		cred_expire;
 
 	struct list_head	lp_waiters;
 	bool			disable_lp;

@@ -90,6 +90,7 @@ struct server srv = {
 	.pid_fd		= -1,
 	.req_fd		= -1,
 	.share_fd	= -1,
+	.cred_expire	= 30,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -802,7 +803,7 @@ static void __http_srv_event(struct evhttp_request *req, void *arg,
 
 		list_add_tail(&gl->node, &srv.lp_waiters);
 	}
-	
+
 	/* otherwise, handle immediately */
 	else
 		http_handle_req(req, false);
@@ -1220,8 +1221,9 @@ int main (int argc, char *argv[])
 	}
 
 	srv.workers = htab_str_new(false, true);
-	if (!srv.workers) {
-		applog(LOG_ERR, "workers htab init failed");
+	srv.cred_cache = htab_str_new(false, true);
+	if (!srv.workers || !srv.cred_cache) {
+		applog(LOG_ERR, "htab init failed");
 		goto err_out;
 	}
 
@@ -1284,6 +1286,8 @@ err_out:
 
 		worker_log_expire(time(NULL) + 1);
 		htab_free(srv.workers);
+
+		htab_free(srv.cred_cache);
 
 		free(srv.ourhost);
 		free(srv.rpc_url);

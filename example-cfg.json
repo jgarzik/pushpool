@@ -1,11 +1,27 @@
 {
 	"listen" : [
-		{ "port" : 8335 }
+		{ "port" : 8336 },
+		{ "port" : 8337, "protocol" : "http-json" },
+		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" },
 	],
 
 	"pid" : "/var/lib/pool/pushpoold.pid",
 
-	"rpc_url" : "http://127.0.0.1:8332/",
-	"rpc_user" : "myusername",
-	"rpc_pass" : "mypassword"
+	"_comment1" : "this overrides local hostname detection",
+	"forcehost" : "localhost.localdomain",
+
+	"log.request" : "/tmp/request.log",
+	"log.shares" : "/tmp/shares.log",
+
+	"longpoll.disable" : False,
+
+	"auth.cred_cache.expire" : 30,
+
+	"rpc.url" : "http://127.0.0.1:8332/",
+	"rpc.user" : "myusername",
+	"rpc.pass" : "mypassword",
+
+	"rpc.target.rewrite" : True,
+
+	"database.path" : "/tmp/db.sqlite"
 }

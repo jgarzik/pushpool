@@ -32,7 +32,7 @@
 #include "server.h"
 
 struct worker {
-	char			username[64];
+	char			username[64 + 1];
 
 	struct list_head	log;
 };
@@ -60,7 +60,7 @@ static const char *bc_err_str[] = {
 	[BC_ERR_INTERNAL] = "internal server err",
 };
 
-char *pwdb_lookup(const char *user)
+char *sql_pwdb_lookup(const char *user)
 {
 	static const char *sql =
 		"SELECT password FROM pool_worker WHERE username = ?";
@@ -96,6 +96,45 @@ err_out:
 	       step, sqlite3_errmsg(srv.db));
 	sqlite3_finalize(stmt);
 	return NULL;
+}
+
+char *pwdb_lookup(const char *user)
+{
+	struct user_cred *cred;
+	time_t now = time(NULL);
+	char *pass = NULL;
+
+	cred = htab_get(srv.cred_cache, user);
+
+	if (!cred || (now > cred->exp_time)) {
+		pass = sql_pwdb_lookup(user);
+		if (!pass)
+			return NULL;
+
+		if (cred) {
+			free(cred->password);
+			cred->password = pass;
+			cred->exp_time = now + srv.cred_expire;
+		} else {
+			cred = calloc(1, sizeof(*cred));
+			if (!cred) {
+				free(pass);
+				return NULL;
+			}
+
+			strncpy(cred->username, user, sizeof(cred->username));
+			cred->password = pass;
+			cred->exp_time = now + srv.cred_expire;
+
+			if (!htab_put(srv.cred_cache, cred->username, cred)) {
+				free(cred);
+				free(pass);
+				return NULL;
+			}
+		}
+	}
+
+	return strdup(cred->password);
 }
 
 void worker_log_expire(time_t expire_time)
@@ -154,7 +193,7 @@ static bool work_in_log(const char *username, const unsigned char *data)
 	worker = htab_get(srv.workers, username);
 	if (!worker)
 		return false;
-	
+
 	list_for_each_entry(ent, &worker->log, log_node) {
 		/* check submitted block matches sent block,
 		 * excluding final 4 bytes (nonce)
