@@ -2,7 +2,7 @@
 	"listen" : [
 		{ "port" : 8336 },
 		{ "port" : 8337, "protocol" : "http-json" },
-		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" },
+		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" }
 	],
 
 	"pid" : "/var/lib/pool/pushpoold.pid",
@@ -13,7 +13,7 @@
 	"log.request" : "/tmp/request.log",
 	"log.shares" : "/tmp/shares.log",
 
-	"longpoll.disable" : False,
+	"longpoll.disable" : false,
 
 	"auth.cred_cache.expire" : 30,
 
@@ -21,7 +21,7 @@
 	"rpc.user" : "myusername",
 	"rpc.pass" : "mypassword",
 
-	"rpc.target.rewrite" : True,
+	"rpc.target.rewrite" : true,
 
 	"database.path" : "/tmp/db.sqlite"
 }
