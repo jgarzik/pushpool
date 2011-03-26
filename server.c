@@ -1212,7 +1212,7 @@ int main (int argc, char *argv[])
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, term_signal);
 	signal(SIGTERM, term_signal);
-	signal(SIGUSR1, stats_signal);
+	signal(SIGUSR2, stats_signal);
 
 	srv.curl = curl_easy_init();
 	if (!srv.curl) {
