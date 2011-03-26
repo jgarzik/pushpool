@@ -10,7 +10,7 @@
 	"_comment1" : "this overrides local hostname detection",
 	"forcehost" : "localhost.localdomain",
 
-	"log.request" : "/tmp/request.log",
+	"log.requests" : "/tmp/request.log",
 	"log.shares" : "/tmp/shares.log",
 
 	"longpoll.disable" : false,
