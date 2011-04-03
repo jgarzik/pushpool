@@ -5,7 +5,14 @@
 		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" }
 	],
 
-	"pid" : "/var/lib/pool/pushpoold.pid",
+	"database" : {
+		"engine" : "sqlite3",
+		"name" : "/tmp/data.sqlite",
+		"stmt.pwdb" :
+		  "SELECT password FROM pool_worker WHERE username = ?"
+	},
+
+	"pid" : "/tmp/pushpoold.pid",
 
 	"_comment1" : "this overrides local hostname detection",
 	"forcehost" : "localhost.localdomain",
@@ -21,7 +28,5 @@
 	"rpc.user" : "myusername",
 	"rpc.pass" : "mypassword",
 
-	"rpc.target.rewrite" : true,
-
-	"database.path" : "/tmp/db.sqlite"
+	"rpc.target.rewrite" : true
 }

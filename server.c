@@ -90,6 +90,10 @@ struct server srv = {
 	.pid_fd		= -1,
 	.req_fd		= -1,
 	.share_fd	= -1,
+
+	.db_eng		= SDB_SQLITE,
+	.db_port	= -1,
+
 	.cred_expire	= 30,
 };
 
@@ -1139,7 +1143,7 @@ static int main_loop(void)
 int main (int argc, char *argv[])
 {
 	error_t aprc;
-	int rc = 1, sqlrc;
+	int rc = 1;
 	struct list_head *tmpl;
 
 	INIT_LIST_HEAD(&srv.listeners);
@@ -1237,13 +1241,8 @@ int main (int argc, char *argv[])
 			goto err_out_listen;
 	}
 
-	sqlrc = sqlite3_open_v2(srv.db_path, &srv.db,
-				SQLITE_OPEN_READONLY, NULL);
-	if (sqlrc != SQLITE_OK) {
-		applog(LOG_ERR, "sqlite3_open(%s) failed: %d",
-		       srv.db_path, sqlrc);
+	if (!sql_open())
 		goto err_out_listen;
-	}
 
 	applog(LOG_INFO, "initialized");
 
@@ -1251,8 +1250,7 @@ int main (int argc, char *argv[])
 
 	applog(LOG_INFO, "shutting down");
 
-	if (sqlite3_close(srv.db) != SQLITE_OK)
-		applog(LOG_WARNING, "db close failed");
+	sql_close();
 
 err_out_listen:
 	/* we ignore closing sockets, as process exit does that for us */
@@ -1282,7 +1280,11 @@ err_out:
 
 		json_decref(srv.easy_target);
 
-		free(srv.db_path);
+		free(srv.db_host);
+		free(srv.db_name);
+		free(srv.db_username);
+		free(srv.db_password);
+		free(srv.db_stmt_pwdb);
 
 		worker_log_expire(time(NULL) + 1);
 		htab_free(srv.workers);

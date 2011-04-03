@@ -26,7 +26,6 @@
 #include <netinet/in.h>
 #include <jansson.h>
 #include <curl/curl.h>
-#include <sqlite3.h>
 #include "elist.h"
 #include "ubbp.h"
 #include "protocol.h"
@@ -99,6 +98,10 @@ struct genlist {
 	struct list_head	node;
 };
 
+enum server_db_eng {
+	SDB_SQLITE,
+};
+
 struct server {
 	unsigned long		flags;		/* SFL_xxx above */
 
@@ -122,8 +125,16 @@ struct server {
 	char			*rpc_userpass;
 	json_t			*easy_target;
 
-	sqlite3			*db;
-	char			*db_path;
+	enum server_db_eng	db_eng;
+
+	char			*db_host;
+	int			db_port;
+	char			*db_name;
+	char			*db_username;
+	char			*db_password;
+	char			*db_stmt_pwdb;
+
+	void			*db_cxn;
 
 	struct hist		*hist;
 	unsigned char		cur_prevhash[32];
@@ -189,5 +200,10 @@ extern json_t *json_rpc_call(CURL *curl, const char *url,
 extern char *bin2hex(unsigned char *p, size_t len);
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern unsigned char * g_base64_decode (const char *text, size_t *out_len);
+
+/* db-sqlite.c */
+extern char *sql_pwdb_lookup(const char *user);
+extern bool sql_open(void);
+extern void sql_close(void);
 
 #endif /* __SERVER_H__ */

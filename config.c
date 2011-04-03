@@ -30,6 +30,9 @@
 
 #define EASY_TARGET "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000"
 
+#define DEFAULT_STMT_PWDB \
+	"SELECT password FROM pool_worker WHERE username = ?"
+
 static void parse_listen(const json_t *listeners)
 {
 	int i, len;
@@ -79,6 +82,57 @@ static void parse_listen(const json_t *listeners)
 	}
 }
 
+static void parse_database(const json_t *db_obj)
+{
+	const json_t *tmp;
+	const char *db_host, *db_name, *db_un, *db_pw, *db_st_pwdb, *tmp_str;
+	int db_port = -1;
+
+	if (!json_is_object(db_obj))
+		return;
+
+	tmp_str = json_string_value(json_object_get(db_obj, "engine"));
+	if (tmp_str) {
+		if (!strcmp(tmp_str, "sqlite3"))
+			srv.db_eng = SDB_SQLITE;
+		else {
+			applog(LOG_ERR, "invalid database.engine");
+			exit(1);
+		}
+	}
+
+	db_host = json_string_value(json_object_get(db_obj, "host"));
+	tmp = json_object_get(db_obj, "port");
+	if (json_is_integer(tmp))
+		db_port = json_integer_value(tmp);
+
+	db_name = json_string_value(json_object_get(db_obj, "name"));
+	db_un = json_string_value(json_object_get(db_obj, "username"));
+	db_pw = json_string_value(json_object_get(db_obj, "password"));
+
+	switch (srv.db_eng) {
+
+	case SDB_SQLITE:
+		if (db_host || db_port >= 0 || db_un || db_pw) {
+			applog(LOG_ERR, "sqlite does not support database host, port, username or password");
+			exit(1);
+		}
+		if (!db_name || (*db_name != '/')) {
+			applog(LOG_ERR, "missing or invalid database.name");
+			exit(1);
+		}
+
+		srv.db_name = strdup(db_name);
+		break;
+
+	}
+
+	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
+	if (!db_st_pwdb)
+		db_st_pwdb = DEFAULT_STMT_PWDB;
+	srv.db_stmt_pwdb = strdup(db_st_pwdb);
+}
+
 void read_config(void)
 {
 	json_t *jcfg, *cred_expire;
@@ -97,6 +151,7 @@ void read_config(void)
 	}
 
 	parse_listen(json_object_get(jcfg, "listen"));
+	parse_database(json_object_get(jcfg, "database"));
 
 	if (list_empty(&srv.listeners)) {
 		applog(LOG_ERR, "error: no listen addresses specified");
@@ -160,13 +215,6 @@ void read_config(void)
 
 	if (json_is_true(json_object_get(jcfg, "rpc.target.rewrite")))
 		srv.easy_target = json_string(EASY_TARGET);
-
-	tmp_str = json_string_value(json_object_get(jcfg, "database.path"));
-	if (!tmp_str) {
-		applog(LOG_ERR, "error: no db path specified");
-		exit(1);
-	}
-	srv.db_path = strdup(tmp_str);
 
 	if (!srv.pid_file) {
 		if (!(srv.pid_file = strdup("/var/run/pushpoold.pid"))) {
