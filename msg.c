@@ -69,7 +69,7 @@ char *pwdb_lookup(const char *user)
 	cred = htab_get(srv.cred_cache, user);
 
 	if (!cred || (now > cred->exp_time)) {
-		pass = sql_pwdb_lookup(user);
+		pass = srv.db_ops->pwdb_lookup(user);
 		if (!pass)
 			return NULL;
 

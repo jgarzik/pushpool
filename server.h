@@ -98,6 +98,12 @@ struct genlist {
 	struct list_head	node;
 };
 
+struct server_db_ops {
+	char	* (*pwdb_lookup)(const char *user);
+	bool	(*open)(void);
+	void	(*close)(void);
+};
+
 enum server_db_eng {
 	SDB_SQLITE,
 };
@@ -126,6 +132,7 @@ struct server {
 	json_t			*easy_target;
 
 	enum server_db_eng	db_eng;
+	struct server_db_ops	*db_ops;
 
 	char			*db_host;
 	int			db_port;
@@ -202,8 +209,6 @@ extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern unsigned char * g_base64_decode (const char *text, size_t *out_len);
 
 /* db-sqlite.c */
-extern char *sql_pwdb_lookup(const char *user);
-extern bool sql_open(void);
-extern void sql_close(void);
+extern struct server_db_ops sqlite_db_ops;
 
 #endif /* __SERVER_H__ */

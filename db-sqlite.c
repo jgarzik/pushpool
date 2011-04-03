@@ -25,7 +25,7 @@
 #include <sqlite3.h>
 #include "server.h"
 
-char *sql_pwdb_lookup(const char *user)
+static char *sql_pwdb_lookup(const char *user)
 {
 	sqlite3 *db = srv.db_cxn;
 	sqlite3_stmt *stmt = NULL;
@@ -66,7 +66,7 @@ err_out:
 	return NULL;
 }
 
-bool sql_open(void)
+static bool sql_open(void)
 {
 	sqlite3 *db;
 	int sqlrc = sqlite3_open_v2(srv.db_name, &db,
@@ -81,10 +81,16 @@ bool sql_open(void)
 	return true;
 }
 
-void sql_close(void)
+static void sql_close(void)
 {
 	sqlite3 *db = srv.db_cxn;
 	if (sqlite3_close(db) != SQLITE_OK)
 		applog(LOG_WARNING, "db close failed");
 }
+
+struct server_db_ops sqlite_db_ops = {
+	.pwdb_lookup	= sql_pwdb_lookup,
+	.open		= sql_open,
+	.close		= sql_close,
+};
 

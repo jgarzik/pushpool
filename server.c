@@ -93,6 +93,7 @@ struct server srv = {
 
 	.db_eng		= SDB_SQLITE,
 	.db_port	= -1,
+	.db_ops		= &sqlite_db_ops,
 
 	.cred_expire	= 30,
 };
@@ -1241,7 +1242,7 @@ int main (int argc, char *argv[])
 			goto err_out_listen;
 	}
 
-	if (!sql_open())
+	if (!srv.db_ops->open())
 		goto err_out_listen;
 
 	applog(LOG_INFO, "initialized");
@@ -1250,7 +1251,7 @@ int main (int argc, char *argv[])
 
 	applog(LOG_INFO, "shutting down");
 
-	sql_close();
+	srv.db_ops->close();
 
 err_out_listen:
 	/* we ignore closing sockets, as process exit does that for us */
