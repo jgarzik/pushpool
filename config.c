@@ -20,10 +20,14 @@
 #define _GNU_SOURCE
 #include "autotools-config.h"
 
+#include <sys/stat.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <syslog.h>
 #include <jansson.h>
 #include "server.h"
@@ -32,6 +36,74 @@
 
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = ?"
+
+static char *read_commented_file(const char *fn)
+{
+	char linebuf[512], *line;
+	struct stat st;
+	char *data = NULL;
+
+	FILE *f = fopen(fn, "r");
+	if (!f) {
+		applog(LOG_ERR, "config file(%s): %s", fn, strerror(errno));
+		goto err_out;
+	}
+
+	/* allocate buffer the size of the file (+1 nul byte) */
+	if (fstat(fileno(f), &st)) {
+		applog(LOG_ERR, "stat config file(%s): %s", fn,strerror(errno));
+		goto err_out_close;
+	}
+
+	data = calloc(1, st.st_size + 1);
+	if (!data)
+		goto err_out_close;
+
+	/* read file line by line */
+	while ((line = fgets(linebuf, sizeof(linebuf), f)) != NULL) {
+		int i;
+		size_t linelen;
+		bool is_comment;
+
+		if (!memchr(line, '\n', sizeof(linebuf))) {
+			applog(LOG_ERR, "config file(%s) line too long", fn);
+			goto err_out_close;
+		}
+
+		linelen = strlen(line);
+
+		/* scan for line matching regex '^\s*#' */
+		is_comment = true;
+		for (i = 0; i < linelen; i++) {
+			int ch;
+
+			ch = line[i];
+
+			if (isspace(ch)) {
+				/* do nothing */
+			} else if (ch == '#')
+				break;
+			else {
+				is_comment = false;
+				break;
+			}
+		}
+
+		/* if it's not a comment, add it to our data buffer */
+		if (!is_comment)
+			strcat(data, line);
+	}
+
+	fclose(f);
+
+	return data;
+
+err_out_close:
+	fclose(f);
+err_out:
+	free(data);
+	return NULL;
+}
 
 static void parse_listen(const json_t *listeners)
 {
@@ -138,10 +210,18 @@ void read_config(void)
 	json_t *jcfg, *cred_expire;
 	json_error_t err;
 	const char *tmp_str, *rpcuser, *rpcpass;
+	char *file_data;
 
-	jcfg = json_load_file(srv.config, &err);
+	file_data = read_commented_file(srv.config);
+	if (!file_data)
+		exit(1);
+
+	jcfg = json_loads(file_data, &err);
+
+	free(file_data);
+
 	if (!jcfg) {
-		applog(LOG_ERR, "failed to load %s", srv.config);
+		applog(LOG_ERR, "%s: JSON parse failed", srv.config);
 		exit(1);
 	}
 

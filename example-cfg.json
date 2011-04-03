@@ -1,10 +1,12 @@
 {
+	# network ports
 	"listen" : [
 		{ "port" : 8336 },
 		{ "port" : 8337, "protocol" : "http-json" },
 		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" }
 	],
 
+	# database settings
 	"database" : {
 		"engine" : "sqlite3",
 		"name" : "/tmp/data.sqlite",
@@ -14,19 +16,23 @@
 
 	"pid" : "/tmp/pushpoold.pid",
 
-	"_comment1" : "this overrides local hostname detection",
+	# overrides local hostname detection
 	"forcehost" : "localhost.localdomain",
 
 	"log.requests" : "/tmp/request.log",
 	"log.shares" : "/tmp/shares.log",
 
+	# the server assumes longpolling (w/ SIGUSR1 called for each blk)
 	"longpoll.disable" : false,
 
+	# length of time to cache username/password credentials
 	"auth.cred_cache.expire" : 30,
 
+	# RPC settings
 	"rpc.url" : "http://127.0.0.1:8332/",
 	"rpc.user" : "myusername",
 	"rpc.pass" : "mypassword",
 
+	# rewrite returned 'target' to difficulty-1?
 	"rpc.target.rewrite" : true
 }
