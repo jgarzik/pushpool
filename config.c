@@ -17,7 +17,9 @@
  *
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include "autotools-config.h"
 
 #include <sys/stat.h>
@@ -168,6 +170,9 @@ static void parse_database(const json_t *db_obj)
 		if (!strcmp(tmp_str, "sqlite3")) {
 			srv.db_eng = SDB_SQLITE;
 			srv.db_ops = &sqlite_db_ops;
+		} else if (!strcmp(tmp_str, "mysql")) {
+			srv.db_eng = SDB_MYSQL;
+			srv.db_ops = &mysql_db_ops;
 		} else {
 			applog(LOG_ERR, "invalid database.engine");
 			exit(1);
@@ -176,8 +181,13 @@ static void parse_database(const json_t *db_obj)
 
 	db_host = json_string_value(json_object_get(db_obj, "host"));
 	tmp = json_object_get(db_obj, "port");
-	if (json_is_integer(tmp))
+	if (json_is_integer(tmp)) {
 		db_port = json_integer_value(tmp);
+		if (db_port < 1 || db_port > 65535) {
+			applog(LOG_ERR, "invalid database port");
+			exit(1);
+		}
+	}
 
 	db_name = json_string_value(json_object_get(db_obj, "name"));
 	db_un = json_string_value(json_object_get(db_obj, "username"));
@@ -198,6 +208,22 @@ static void parse_database(const json_t *db_obj)
 		srv.db_name = strdup(db_name);
 		break;
 
+	case SDB_MYSQL:
+		if (!db_host)
+			db_host = "localhost";
+		if (db_port < 0)
+			db_port = -1;
+		if (!db_name || !db_un || !db_pw) {
+			applog(LOG_ERR, "missing database name, user or pass");
+			exit(1);
+		}
+
+		srv.db_host = strdup(db_host);
+		srv.db_port = db_port;
+		srv.db_name = strdup(db_name);
+		srv.db_username = strdup(db_un);
+		srv.db_password = strdup(db_pw);
+		break;
 	}
 
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));

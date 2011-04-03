@@ -12,6 +12,24 @@
 		"name" : "/tmp/data.sqlite",
 		"stmt.pwdb" :
 		  "SELECT password FROM pool_worker WHERE username = ?"
+
+		# ... or ...
+
+		"engine" : "mysql",
+
+		# 'host' defaults to localhost, if not specified
+		"host" : "mysql.example.com",
+
+		# 'port' uses proper default port for the DB engine,
+		# if not specified
+		"port" : 12121,
+
+		"name" : "mydatabasename",
+		"username" : "myuser",
+		"password" : "mypass",
+
+		"stmt.pwdb" :
+		  "SELECT password FROM pool_worker WHERE username = '%s'"
 	},
 
 	"pid" : "/tmp/pushpoold.pid",

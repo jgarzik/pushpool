@@ -43,6 +43,7 @@ AC_CHECK_LIB(sqlite3, sqlite3_open_v2, SQLITE3_LIBS=-lsqlite3,
 
 PKG_PROG_PKG_CONFIG()
 
+MYSQL_CLIENT()
 LIBCURL_CHECK_CONFIG(, 7.10.1, ,
   [AC_MSG_ERROR([Missing required libcurl >= 7.10.1])])
 

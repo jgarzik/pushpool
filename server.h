@@ -106,6 +106,7 @@ struct server_db_ops {
 
 enum server_db_eng {
 	SDB_SQLITE,
+	SDB_MYSQL,
 };
 
 struct server {
@@ -208,7 +209,8 @@ extern char *bin2hex(unsigned char *p, size_t len);
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern unsigned char * g_base64_decode (const char *text, size_t *out_len);
 
-/* db-sqlite.c */
+/* db-*.c */
 extern struct server_db_ops sqlite_db_ops;
+extern struct server_db_ops mysql_db_ops;
 
 #endif /* __SERVER_H__ */
