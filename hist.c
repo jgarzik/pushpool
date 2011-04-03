@@ -14,17 +14,17 @@ enum {
 struct hist_entry {
 	unsigned char		hash[SHA256_DIGEST_LENGTH];
 
-	struct list_head	log_node;
-	struct list_head	tbl_node;
+	struct elist_head	log_node;
+	struct elist_head	tbl_node;
 };
 
 struct hist_bucket {
-	struct list_head	chain;
+	struct elist_head	chain;
 };
 
 struct hist {
 	struct hist_bucket	tbl[HIST_TBL_SZ];
-	struct list_head	log;
+	struct elist_head	log;
 	unsigned int		log_sz;
 };
 
@@ -32,10 +32,10 @@ static void hist_expire(struct hist *hist)
 {
 	struct hist_entry *ent;
 
-	ent = list_entry(hist->log.next, struct hist_entry, log_node);
+	ent = elist_entry(hist->log.next, struct hist_entry, log_node);
 
-	list_del_init(&ent->log_node);
-	list_del_init(&ent->tbl_node);
+	elist_del_init(&ent->log_node);
+	elist_del_init(&ent->tbl_node);
 
 	hist->log_sz--;
 
@@ -54,15 +54,15 @@ bool hist_add(struct hist *hist, const unsigned char *hash)
 		return false;
 
 	memcpy(ent->hash, hash, SHA256_DIGEST_LENGTH);
-	INIT_LIST_HEAD(&ent->log_node);
-	INIT_LIST_HEAD(&ent->tbl_node);
+	INIT_ELIST_HEAD(&ent->log_node);
+	INIT_ELIST_HEAD(&ent->tbl_node);
 
 	/* add to log */
-	list_add_tail(&ent->log_node, &hist->log);
+	elist_add_tail(&ent->log_node, &hist->log);
 	hist->log_sz++;
 
 	/* add to hash table */
-	list_add_tail(&ent->tbl_node, &hist->tbl[bucket].chain);
+	elist_add_tail(&ent->tbl_node, &hist->tbl[bucket].chain);
 
 	/* expire old entries */
 	while (hist->log_sz > HIST_LOG_SZ)
@@ -77,7 +77,7 @@ bool hist_lookup(struct hist *hist, const unsigned char *hash)
 	uint32_t hash32 = *((const uint32_t *) hash);
 	int bucket = hash32 % HIST_TBL_SZ;
 
-	list_for_each_entry(ent, &hist->tbl[bucket].chain, tbl_node) {
+	elist_for_each_entry(ent, &hist->tbl[bucket].chain, tbl_node) {
 		if (!memcmp(hash, ent->hash, SHA256_DIGEST_LENGTH))
 			return true;
 	}
@@ -107,9 +107,9 @@ struct hist *hist_alloc(void)
 		return NULL;
 
 	for (i = 0; i < HIST_TBL_SZ; i++)
-		INIT_LIST_HEAD(&hist->tbl[i].chain);
+		INIT_ELIST_HEAD(&hist->tbl[i].chain);
 
-	INIT_LIST_HEAD(&hist->log);
+	INIT_ELIST_HEAD(&hist->log);
 
 	return hist;
 }

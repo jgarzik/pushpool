@@ -14,11 +14,11 @@ struct tcp_read {
 	bool			(*cb)(void *, void *,
 				      unsigned int, bool); /* callback*/
 	void			*priv;		/* app-private callback arg */
-	struct list_head	node;
+	struct elist_head	node;
 };
 
 struct tcp_read_state {
-	struct list_head	q;		/* read queue */
+	struct elist_head	q;		/* read queue */
 	int			fd;		/* network socket fd */
 	void			*priv;		/* app-specific data */
 

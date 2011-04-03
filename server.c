@@ -767,13 +767,13 @@ static void flush_lp_waiters(void)
 {
 	struct genlist *tmp, *iter;
 
-	list_for_each_entry_safe(tmp, iter, &srv.lp_waiters, node) {
+	elist_for_each_entry_safe(tmp, iter, &srv.lp_waiters, node) {
 		struct evhttp_request *req;
 
 		req = tmp->data;
 		http_handle_req(req, true);
 
-		list_del(&tmp->node);
+		elist_del(&tmp->node);
 		memset(tmp, 0, sizeof(*tmp));
 		free(tmp);
 	}
@@ -808,9 +808,9 @@ static void __http_srv_event(struct evhttp_request *req, void *arg,
 			return;
 
 		gl->data = req;
-		INIT_LIST_HEAD(&gl->node);
+		INIT_ELIST_HEAD(&gl->node);
 
-		list_add_tail(&gl->node, &srv.lp_waiters);
+		elist_add_tail(&gl->node, &srv.lp_waiters);
 	}
 
 	/* otherwise, handle immediately */
@@ -850,7 +850,7 @@ static void net_sock_free(struct server_socket *sock)
 	if (!sock)
 		return;
 
-	list_del_init(&sock->sockets_node);
+	elist_del_init(&sock->sockets_node);
 
 	if (sock->http)
 		evhttp_free(sock->http);
@@ -869,12 +869,12 @@ static void net_close(void)
 	struct server_socket *sock, *iter;
 	struct listen_cfg *cfg, *citer;
 
-	list_for_each_entry_safe(sock, iter, &srv.sockets, sockets_node) {
+	elist_for_each_entry_safe(sock, iter, &srv.sockets, sockets_node) {
 		net_sock_free(sock);
 	}
 
-	list_for_each_entry_safe(cfg, citer, &srv.listeners, listeners_node) {
-		list_del_init(&cfg->listeners_node);
+	elist_for_each_entry_safe(cfg, citer, &srv.listeners, listeners_node) {
+		elist_del_init(&cfg->listeners_node);
 		free(cfg->host);
 		free(cfg->port_file);
 		memset(cfg, 0, sizeof(*cfg)); /* poison */
@@ -927,7 +927,7 @@ static int net_open_socket(const struct listen_cfg *cfg,
 		goto err_out_fd;
 	}
 
-	INIT_LIST_HEAD(&sock->sockets_node);
+	INIT_ELIST_HEAD(&sock->sockets_node);
 
 	sock->fd = fd;
 	sock->cfg = cfg;
@@ -955,7 +955,7 @@ static int net_open_socket(const struct listen_cfg *cfg,
 			goto err_out_sock;
 	}
 
-	list_add_tail(&sock->sockets_node, &srv.sockets);
+	elist_add_tail(&sock->sockets_node, &srv.sockets);
 
 	return fd;
 
@@ -1149,12 +1149,12 @@ int main (int argc, char *argv[])
 {
 	error_t aprc;
 	int rc = 1;
-	struct list_head *tmpl;
+	struct elist_head *tmpl;
 
-	INIT_LIST_HEAD(&srv.listeners);
-	INIT_LIST_HEAD(&srv.sockets);
-	INIT_LIST_HEAD(&srv.work_log);
-	INIT_LIST_HEAD(&srv.lp_waiters);
+	INIT_ELIST_HEAD(&srv.listeners);
+	INIT_ELIST_HEAD(&srv.sockets);
+	INIT_ELIST_HEAD(&srv.work_log);
+	INIT_ELIST_HEAD(&srv.lp_waiters);
 
 	/* isspace() and strcasecmp() consistency requires this */
 	setlocale(LC_ALL, "C");
@@ -1237,10 +1237,10 @@ int main (int argc, char *argv[])
 	}
 
 	/* set up server networking */
-	list_for_each(tmpl, &srv.listeners) {
+	elist_for_each(tmpl, &srv.listeners) {
 		struct listen_cfg *tmpcfg;
 
-		tmpcfg = list_entry(tmpl, struct listen_cfg, listeners_node);
+		tmpcfg = elist_entry(tmpl, struct listen_cfg, listeners_node);
 		rc = net_open_known(tmpcfg);
 		if (rc)
 			goto err_out_listen;

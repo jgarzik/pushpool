@@ -14,11 +14,11 @@ struct htab_entry {
 	void			*key;
 	void			*value;
 	unsigned long		hash;
-	struct list_head	chain_node;
+	struct elist_head	chain_node;
 };
 
 struct htab_bucket {
-	struct list_head	chain;
+	struct elist_head	chain;
 };
 
 struct htab {
@@ -54,7 +54,7 @@ static void htab_init_buckets(struct htab_bucket *buckets, int sz)
 	int i;
 
 	for (i = 0; i < sz; i++) {
-		INIT_LIST_HEAD(&buckets[i].chain);
+		INIT_ELIST_HEAD(&buckets[i].chain);
 	}
 }
 
@@ -114,7 +114,7 @@ static void htab_free_ent(struct htab *htab, struct htab_entry *ent)
 		htab->free_value_fn(ent->value);
 
 	/* remove ourselves from the hash chain */
-	list_del(&ent->chain_node);
+	elist_del(&ent->chain_node);
 
 	/* delete hash entry */
 	free(ent);
@@ -130,7 +130,7 @@ static void htab_clear(struct htab *htab)
 
 	/* remove each hash entry from each hash chain in each bucket */
 	for (bucket = 0; bucket < htab_sz(htab); bucket++) {
-		list_for_each_entry_safe(ent, iter,
+		elist_for_each_entry_safe(ent, iter,
 				 &htab->buckets[bucket].chain, chain_node) {
 			htab_free_ent(htab, ent);
 		}
@@ -180,16 +180,16 @@ static bool htab_resize(struct htab *htab)
 	for (bucket = 0; bucket < old_sz; bucket++) {
 		struct htab_entry *ent, *iter;
 
-		list_for_each_entry_safe(ent, iter,
+		elist_for_each_entry_safe(ent, iter,
 					 &htab->buckets[bucket].chain,
 					 chain_node) {
 			unsigned int new_bucket;
 
-			list_del_init(&ent->chain_node);
+			elist_del_init(&ent->chain_node);
 
 			new_bucket = ent->hash % new_sz;
 
-			list_add_tail(&ent->chain_node,
+			elist_add_tail(&ent->chain_node,
 				      &new_buckets[new_bucket].chain);
 		}
 	}
@@ -220,10 +220,10 @@ bool htab_put(struct htab *htab, void *key, void *value)
 	ent->key = key;
 	ent->value = value;
 	ent->hash = hash;
-	INIT_LIST_HEAD(&ent->chain_node);
+	INIT_ELIST_HEAD(&ent->chain_node);
 
 	/* add hash entry to bucket's chain */
-	list_add(&ent->chain_node, &htab->buckets[bucket].chain);
+	elist_add(&ent->chain_node, &htab->buckets[bucket].chain);
 
 	/* account for additional hash entry */
 	htab->n_ent++;
@@ -238,7 +238,7 @@ void *htab_get(struct htab *htab, const void *key)
 	unsigned int bucket = hash % htab_sz(htab);
 
 	/* search bucket's chain for key, returning first value found */
-	list_for_each_entry(ent, &htab->buckets[bucket].chain, chain_node) {
+	elist_for_each_entry(ent, &htab->buckets[bucket].chain, chain_node) {
 		if ((ent->hash == hash) &&
 		    (htab->cmp_fn(ent->key, key) == 0))
 			return ent->value;
@@ -255,7 +255,7 @@ bool htab_del(struct htab *htab, const void *key)
 	bool found = false;
 
 	/* search bucket's chain for key, deleting all matching entries */
-	list_for_each_entry_safe(ent, iter,
+	elist_for_each_entry_safe(ent, iter,
 				 &htab->buckets[bucket].chain, chain_node) {
 		if ((ent->hash == hash) &&
 		    (htab->cmp_fn(ent->key, key) == 0)) {
@@ -274,7 +274,7 @@ void htab_foreach(struct htab *htab, htab_iter_fn iter_fn, void *userdata)
 	for (i = 0; i < htab_sz(htab); i++) {
 		struct htab_entry *ent, *iter;
 
-		list_for_each_entry_safe(ent, iter,
+		elist_for_each_entry_safe(ent, iter,
 				         &htab->buckets[i].chain, chain_node) {
 			iter_fn(ent->key, ent->value, userdata);
 		}

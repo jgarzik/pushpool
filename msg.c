@@ -36,7 +36,7 @@
 struct worker {
 	char			username[64 + 1];
 
-	struct list_head	log;
+	struct elist_head	log;
 };
 
 struct work_ent {
@@ -44,8 +44,8 @@ struct work_ent {
 
 	time_t			timestamp;
 
-	struct list_head	log_node;
-	struct list_head	srv_log_node;
+	struct elist_head	log_node;
+	struct elist_head	srv_log_node;
 };
 
 enum {
@@ -105,12 +105,12 @@ void worker_log_expire(time_t expire_time)
 {
 	struct work_ent *ent, *iter;
 
-	list_for_each_entry_safe(ent, iter, &srv.work_log, srv_log_node) {
+	elist_for_each_entry_safe(ent, iter, &srv.work_log, srv_log_node) {
 		if (ent->timestamp > expire_time)
 			break;
 
-		list_del(&ent->srv_log_node);
-		list_del(&ent->log_node);
+		elist_del(&ent->srv_log_node);
+		elist_del(&ent->log_node);
 		free(ent);
 	}
 }
@@ -128,7 +128,7 @@ static void worker_log(const char *username, const unsigned char *data)
 			return;
 
 		strncpy(worker->username, username, sizeof(worker->username));
-		INIT_LIST_HEAD(&worker->log);
+		INIT_ELIST_HEAD(&worker->log);
 
 		if (!htab_put(srv.workers, worker->username, worker))
 			return;
@@ -140,11 +140,11 @@ static void worker_log(const char *username, const unsigned char *data)
 
 	memcpy(ent->data, data, sizeof(ent->data));
 	ent->timestamp = now;
-	INIT_LIST_HEAD(&ent->log_node);
-	INIT_LIST_HEAD(&ent->srv_log_node);
+	INIT_ELIST_HEAD(&ent->log_node);
+	INIT_ELIST_HEAD(&ent->srv_log_node);
 
-	list_add_tail(&ent->log_node, &worker->log);
-	list_add_tail(&ent->srv_log_node, &srv.work_log);
+	elist_add_tail(&ent->log_node, &worker->log);
+	elist_add_tail(&ent->srv_log_node, &srv.work_log);
 
 	worker_log_expire(now - WORK_EXPIRE_INT);
 }
@@ -158,7 +158,7 @@ static bool work_in_log(const char *username, const unsigned char *data)
 	if (!worker)
 		return false;
 
-	list_for_each_entry(ent, &worker->log, log_node) {
+	elist_for_each_entry(ent, &worker->log, log_node) {
 		/* check submitted block matches sent block,
 		 * excluding final 4 bytes (nonce)
 		 */

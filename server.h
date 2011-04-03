@@ -76,7 +76,7 @@ struct server_socket {
 	const struct listen_cfg	*cfg;
 	struct event		ev;
 	struct evhttp		*http;
-	struct list_head	sockets_node;
+	struct elist_head	sockets_node;
 };
 
 enum listen_protocol {
@@ -89,13 +89,13 @@ struct listen_cfg {
 	int			port;
 	char			*port_file;
 	enum listen_protocol	proto;
-	struct list_head	listeners_node;
+	struct elist_head	listeners_node;
 };
 
 struct genlist {
 	void			*data;
 	size_t			data_len;
-	struct list_head	node;
+	struct elist_head	node;
 };
 
 struct server_db_ops {
@@ -147,16 +147,16 @@ struct server {
 	unsigned char		cur_prevhash[32];
 
 	struct htab		*workers;
-	struct list_head	work_log;
+	struct elist_head	work_log;
 
 	struct htab		*cred_cache;
 	unsigned int		cred_expire;
 
-	struct list_head	lp_waiters;
+	struct elist_head	lp_waiters;
 	bool			disable_lp;
 
-	struct list_head	listeners;
-	struct list_head	sockets;	/* points into listeners */
+	struct elist_head	listeners;
+	struct elist_head	sockets;	/* points into listeners */
 
 	struct server_stats	stats;		/* global statistics */
 };

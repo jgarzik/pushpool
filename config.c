@@ -144,13 +144,13 @@ static void parse_listen(const json_t *listeners)
 				lc->proto = LP_BC_BINARY;
 		}
 
-		INIT_LIST_HEAD(&lc->listeners_node);
+		INIT_ELIST_HEAD(&lc->listeners_node);
 
 		if (host_str)
 			lc->host = strdup(host_str);
 		lc->port = port;
 
-		list_add_tail(&lc->listeners_node, &srv.listeners);
+		elist_add_tail(&lc->listeners_node, &srv.listeners);
 	}
 }
 
@@ -234,7 +234,7 @@ void read_config(void)
 	parse_listen(json_object_get(jcfg, "listen"));
 	parse_database(json_object_get(jcfg, "database"));
 
-	if (list_empty(&srv.listeners)) {
+	if (elist_empty(&srv.listeners)) {
 		applog(LOG_ERR, "error: no listen addresses specified");
 		exit(1);
 	}

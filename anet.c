@@ -35,7 +35,7 @@ void tcp_read_init(struct tcp_read_state *rst, int fd, void *priv)
 
 	rst->fd = fd;
 	rst->priv = priv;
-	INIT_LIST_HEAD(&rst->q);
+	INIT_ELIST_HEAD(&rst->q);
 }
 
 void tcp_read_free(struct tcp_read_state *rst)
@@ -43,8 +43,8 @@ void tcp_read_free(struct tcp_read_state *rst)
 	struct tcp_read *rd, *tmp;
 	bool ok = true;
 
-	list_for_each_entry_safe(rd, tmp, &rst->q, node) {
-		list_del(&rd->node);
+	elist_for_each_entry_safe(rd, tmp, &rst->q, node) {
+		elist_del(&rd->node);
 
 		if (rd->cb)
 			ok = rd->cb(rst->priv, rd->priv, 0, false);
@@ -73,9 +73,9 @@ bool tcp_read(struct tcp_read_state *rst,
 	rd->len = buflen;
 	rd->cb = cb;
 	rd->priv = priv;
-	INIT_LIST_HEAD(&rd->node);
+	INIT_ELIST_HEAD(&rd->node);
 
-	list_add_tail(&rd->node, &rst->q);
+	elist_add_tail(&rd->node, &rst->q);
 
 	return true;
 }
@@ -99,9 +99,9 @@ bool tcp_read_inf(struct tcp_read_state *rst,
 	rd->check_compl_cb = check_compl_cb;
 	rd->cb = cb;
 	rd->priv = priv;
-	INIT_LIST_HEAD(&rd->node);
+	INIT_ELIST_HEAD(&rd->node);
 
-	list_add_tail(&rd->node, &rst->q);
+	elist_add_tail(&rd->node, &rst->q);
 
 	return true;
 }
@@ -208,7 +208,7 @@ static int tcp_read_exec(struct tcp_read_state *rst, struct tcp_read *rd)
 	if (rd->cb)
 		ok = rd->cb(rst->priv, rd->priv, rd->curlen, true);
 
-	list_del(&rd->node);
+	elist_del(&rd->node);
 
 	memset(rd, 0, sizeof(*rd));	/* poison */
 	free(rd);
@@ -221,7 +221,7 @@ bool tcp_read_runq(struct tcp_read_state *rst)
 	struct tcp_read *rd, *tmp;
 	bool ok = true;
 
-	list_for_each_entry_safe(rd, tmp, &rst->q, node) {
+	elist_for_each_entry_safe(rd, tmp, &rst->q, node) {
 		int rc;
 
 		rc = tcp_read_exec(rst, rd);
