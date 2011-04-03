@@ -18,7 +18,9 @@
  *
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include "autotools-config.h"
 
 #include <stdio.h>
@@ -621,7 +623,7 @@ static void reqlog(const char *rem_host, const char *username,
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
 
-	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s \"%s\"\n",
+	if (asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s \"%s\"\n",
 		tm.tm_year + 1900,
 		tm.tm_mon,
 		tm.tm_mday,
@@ -631,7 +633,8 @@ static void reqlog(const char *rem_host, const char *username,
 		(unsigned long long) tv.tv_usec,
 	        (rem_host && *rem_host) ? rem_host : "-",
 	        (username && *username) ? username : "-",
-	        (uri && *uri) ? uri : "");
+	        (uri && *uri) ? uri : "") < 0)
+		return;
 
 	wrc = write(srv.req_fd, f, strlen(f));
 	if (wrc != strlen(f))
@@ -655,7 +658,7 @@ void sharelog(const char *rem_host, const char *username,
 	gettimeofday(&tv, NULL);
 	gmtime_r(&tv.tv_sec, &tm);
 
-	asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s %s\n",
+	if (asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02d.%llu] %s %s %s %s %s %s\n",
 		tm.tm_year + 1900,
 		tm.tm_mon,
 		tm.tm_mday,
@@ -668,7 +671,8 @@ void sharelog(const char *rem_host, const char *username,
 	        (our_result && *our_result) ? our_result : "-",
 	        (upstream_result && *upstream_result) ? upstream_result : "-",
 	        (reason && *reason) ? reason : "-",
-		(solution && *solution) ? solution : "-");
+		(solution && *solution) ? solution : "-") < 0)
+		return;
 
 	wrc = write(srv.share_fd, f, strlen(f));
 	if (wrc != strlen(f))

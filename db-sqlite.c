@@ -17,7 +17,9 @@
  *
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include "autotools-config.h"
 
 #include <string.h>
