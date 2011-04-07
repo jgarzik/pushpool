@@ -720,8 +720,8 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 			goto err_out_bad_req;
 		body = EVBUFFER_DATA(req->input_buffer);
 		body_str = strndup(body, clen);
-	if (!body_str)
-		goto err_out_bad_req;
+		if (!body_str)
+			goto err_out_bad_req;
 	} else /* long polling */
 		body_str = strdup("{\"method\":\"getwork\",\"params\":[],\"id\":1}");
 
