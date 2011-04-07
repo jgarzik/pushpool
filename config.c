@@ -178,6 +178,11 @@ static void parse_database(const json_t *db_obj)
 			srv.db_eng = SDB_MYSQL;
 			srv.db_ops = &mysql_db_ops;
 #endif
+#ifdef HAVE_POSTGRESQL
+		} else if (!strcmp(tmp_str, "postgresql")) {
+			srv.db_eng = SDB_POSTGRESQL;
+			srv.db_ops = &postgresql_db_ops;
+#endif
 		} else {
 			applog(LOG_ERR, "invalid database.engine");
 			exit(1);
@@ -213,7 +218,7 @@ static void parse_database(const json_t *db_obj)
 		srv.db_name = strdup(db_name);
 		break;
 
-	case SDB_MYSQL:
+	default:
 		if (!db_host)
 			db_host = "localhost";
 		if (db_port < 0)

@@ -109,6 +109,7 @@ struct server_db_ops {
 enum server_db_eng {
 	SDB_SQLITE,
 	SDB_MYSQL,
+	SDB_POSTGRESQL,
 };
 
 struct server {
@@ -217,6 +218,9 @@ extern struct server_db_ops sqlite_db_ops;
 #endif
 #ifdef HAVE_MYSQL
 extern struct server_db_ops mysql_db_ops;
+#endif
+#ifdef HAVE_POSTGRESQL
+extern struct server_db_ops postgresql_db_ops;
 #endif
 
 #endif /* __SERVER_H__ */

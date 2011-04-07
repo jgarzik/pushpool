@@ -99,6 +99,9 @@ struct server srv = {
 #elif defined(HAVE_MYSQL)
 	.db_eng		= SDB_MYSQL,
 	.db_ops		= &mysql_db_ops,
+#elif defined(HAVE_POSTGRESQL)
+	.db_eng		= SDB_POSTGRESQL,
+	.db_ops		= &postgresql_db_ops,
 #else
 #error("No valid database engines defined")
 #endif
