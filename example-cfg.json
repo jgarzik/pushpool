@@ -30,6 +30,21 @@
 
 		"stmt.pwdb" :
 		  "SELECT password FROM pool_worker WHERE username = '%s'"
+
+		# ... or ...
+
+		"engine" : "postgresql",
+
+		"host" : "db.example.com",
+
+		"port" : 12121,
+
+		"name" : "mydatabasename",
+		"username" : "myuser",
+		"password" : "mypass",
+
+		"stmt.pwdb" :
+		  "SELECT password FROM pool_worker WHERE username = $1"
 	},
 
 	"pid" : "/tmp/pushpoold.pid",
