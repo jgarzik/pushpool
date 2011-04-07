@@ -22,6 +22,8 @@
 #endif
 #include "autotools-config.h"
 
+#ifdef HAVE_SQLITE3 /**/
+
 #include <string.h>
 #include <syslog.h>
 #include <sqlite3.h>
@@ -96,3 +98,4 @@ struct server_db_ops sqlite_db_ops = {
 	.close		= sql_close,
 };
 
+#endif /* HAVE_SQLITE3 /**/ */

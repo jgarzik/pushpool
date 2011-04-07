@@ -93,9 +93,16 @@ struct server srv = {
 	.req_fd		= -1,
 	.share_fd	= -1,
 
+#if defined(HAVE_SQLITE3)
 	.db_eng		= SDB_SQLITE,
-	.db_port	= -1,
 	.db_ops		= &sqlite_db_ops,
+#elif defined(HAVE_MYSQL)
+	.db_eng		= SDB_MYSQL,
+	.db_ops		= &mysql_db_ops,
+#else
+#error("No valid database engines defined")
+#endif
+	.db_port	= -1,
 
 	.cred_expire	= 30,
 };

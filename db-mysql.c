@@ -22,6 +22,8 @@
 #endif
 #include "autotools-config.h"
 
+#ifdef HAVE_MYSQL
+
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
@@ -126,3 +128,4 @@ struct server_db_ops mysql_db_ops = {
 	.close		= my_close,
 };
 
+#endif /* HAVE_MYSQL */

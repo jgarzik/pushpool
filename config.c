@@ -167,12 +167,17 @@ static void parse_database(const json_t *db_obj)
 
 	tmp_str = json_string_value(json_object_get(db_obj, "engine"));
 	if (tmp_str) {
-		if (!strcmp(tmp_str, "sqlite3")) {
+		if (0) {
+#ifdef HAVE_SQLITE3 /**/
+		} else if (!strcmp(tmp_str, "sqlite3")) {
 			srv.db_eng = SDB_SQLITE;
 			srv.db_ops = &sqlite_db_ops;
+#endif
+#ifdef HAVE_MYSQL
 		} else if (!strcmp(tmp_str, "mysql")) {
 			srv.db_eng = SDB_MYSQL;
 			srv.db_ops = &mysql_db_ops;
+#endif
 		} else {
 			applog(LOG_ERR, "invalid database.engine");
 			exit(1);
