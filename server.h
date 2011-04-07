@@ -20,7 +20,7 @@
  *
  */
 
-#include <autotools-config.h>
+#include "autotools-config.h"
 
 #include <stdbool.h>
 #include <event.h>
@@ -212,7 +212,7 @@ extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern unsigned char * g_base64_decode (const char *text, size_t *out_len);
 
 /* db-*.c */
-#ifdef HAVE_SQLITE3 /**/
+#ifdef HAVE_SQLITE3
 extern struct server_db_ops sqlite_db_ops;
 #endif
 #ifdef HAVE_MYSQL
