@@ -694,15 +694,6 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 	bool rc;
 	struct evbuffer *evbuf;
 
-	clen_str = evhttp_find_header(req->input_headers, "Content-Length");
-	if (clen_str)
-		clen = atoi(clen_str);
-	if (clen < 1 || clen > 999999) {
-		reqlog(req->remote_host, username, req->uri);
-		evhttp_send_reply(req, HTTP_BADREQUEST, "invalid args", NULL);
-		return;
-	}
-
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth) {
 		reqlog(req->remote_host, username, req->uri);
@@ -715,12 +706,24 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 		return;
 	}
 
-	if (EVBUFFER_LENGTH(req->input_buffer) != clen)
-		goto err_out_bad_req;
-	body = EVBUFFER_DATA(req->input_buffer);
-	body_str = strndup(body, clen);
+	if (!longpoll) {
+		clen_str = evhttp_find_header(req->input_headers, "Content-Length");
+		if (clen_str)
+			clen = atoi(clen_str);
+		if (clen < 1 || clen > 999999) {
+			reqlog(req->remote_host, username, req->uri);
+			evhttp_send_reply(req, HTTP_BADREQUEST, "invalid args", NULL);
+			return;
+		}
+
+		if (EVBUFFER_LENGTH(req->input_buffer) != clen)
+			goto err_out_bad_req;
+		body = EVBUFFER_DATA(req->input_buffer);
+		body_str = strndup(body, clen);
 	if (!body_str)
 		goto err_out_bad_req;
+	} else /* long polling */
+		body_str = strdup("{\"method\":\"getwork\",\"params\":[],\"id\":1}");
 
 	jreq = json_loads(body_str, &jerr);
 
