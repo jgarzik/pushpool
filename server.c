@@ -662,6 +662,10 @@ void sharelog(const char *rem_host, const char *username,
 	ssize_t wrc;
 	struct tm tm;
 
+	if (srv.db_sharelog && srv.db_ops->sharelog != NULL)
+		srv.db_ops->sharelog(rem_host, username, our_result,
+				     upstream_result, reason, solution);
+
 	if (srv.share_fd < 0)
 		return;
 

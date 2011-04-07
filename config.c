@@ -38,6 +38,9 @@
 
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = ?"
+#define DEFAULT_STMT_SHARELOG \
+	"insert into sharelog (time,rem_host, username our_result, upstream_result, reason, solution) \
+	values(?,?,?,?,?,?,?)"
 
 static char *read_commented_file(const char *fn)
 {
@@ -159,7 +162,7 @@ static void parse_listen(const json_t *listeners)
 static void parse_database(const json_t *db_obj)
 {
 	const json_t *tmp;
-	const char *db_host, *db_name, *db_un, *db_pw, *db_st_pwdb, *tmp_str;
+	const char *db_host, *db_name, *db_un, *db_pw, *db_st_pwdb, *db_st_sharelog, *tmp_str;
 	int db_port = -1;
 
 	if (!json_is_object(db_obj))
@@ -202,6 +205,8 @@ static void parse_database(const json_t *db_obj)
 	db_name = json_string_value(json_object_get(db_obj, "name"));
 	db_un = json_string_value(json_object_get(db_obj, "username"));
 	db_pw = json_string_value(json_object_get(db_obj, "password"));
+	srv.db_sharelog = (json_is_true(json_object_get(db_obj, "sharelog")))
+			? true : false;
 
 	switch (srv.db_eng) {
 
@@ -240,6 +245,10 @@ static void parse_database(const json_t *db_obj)
 	if (!db_st_pwdb)
 		db_st_pwdb = DEFAULT_STMT_PWDB;
 	srv.db_stmt_pwdb = strdup(db_st_pwdb);
+	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
+	if (!db_st_sharelog)
+		db_st_sharelog = DEFAULT_STMT_SHARELOG;
+	srv.db_stmt_sharelog = strdup(db_st_sharelog);
 }
 
 void read_config(void)

@@ -324,7 +324,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 		goto out;
 	if (check_rc == 0) {	/* invalid hash */
 		*json_result = false;
-		sharelog(remote_host, auth_user, "N", "n/a", reason, hexstr);
+		sharelog(remote_host, auth_user, "N", NULL, reason, hexstr);
 		return true;
 	}
 
@@ -333,7 +333,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	 */
 	if (srv.easy_target && check_rc == 1) {
 		*json_result = true;
-		sharelog(remote_host, auth_user, "Y", "n/a", NULL, hexstr);
+		sharelog(remote_host, auth_user, "Y", NULL, NULL, hexstr);
 		return true;
 	}
 
