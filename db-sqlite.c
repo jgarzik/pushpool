@@ -24,13 +24,18 @@
 
 #ifdef HAVE_SQLITE3
 
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 #include <sqlite3.h>
 #include "server.h"
 
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = ?"
+#define DEFAULT_STMT_SHARELOG \
+	"insert into shares (time,rem_host, username our_result, upstream_result, reason, solution) \
+	values(?,?,?,?,?,?,?)"
 
 static char *sql_pwdb_lookup(const char *user)
 {
@@ -73,6 +78,53 @@ err_out:
 	return NULL;
 }
 
+static void sql_sharelog(const char *rem_host, const char *username,
+			 const char *our_result, const char *upstream_result,
+			 const char *reason, const char *solution)
+{
+	struct timeval tv = { };
+	char timestr[128];
+	sqlite3_stmt *stmt = NULL;
+	struct tm tm;
+	int rc, i;
+	const char *bind_values[] = { timestr, rem_host, username,
+		our_result, upstream_result,
+		reason, solution, NULL
+	};
+
+	gettimeofday(&tv, NULL);
+	gmtime_r(&tv.tv_sec, &tm);
+	snprintf(timestr, 128, "%d-%02d-%02d %02d:%02d:%02.6f",
+		 tm.tm_year + 1900,
+		 tm.tm_mon + 1,
+		 tm.tm_mday,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec + tv.tv_usec / 1000000.0);
+	rc = sqlite3_prepare_v2(srv.db_cxn, srv.db_stmt_sharelog,
+				-1, &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		applog(LOG_ERR, "sql_sharelog(prepare) failed: %s",
+		       sqlite3_errmsg(srv.db_cxn));
+		goto out;
+	}
+	for (i = 0; bind_values[i] != NULL; i++) {
+		rc = sqlite3_bind_text(stmt, i + 1, bind_values[i],
+				       -1, SQLITE_STATIC);
+		if (rc != SQLITE_OK) {
+			applog(LOG_ERR, "sql_sharelog: bind(%d) failed: %s",
+			       i + 1, sqlite3_errmsg(srv.db_cxn));
+			goto out;
+		}
+	}
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		applog(LOG_ERR, "sql_sharelog: execute failed: %s",
+		       sqlite3_errmsg(srv.db_cxn));
+		goto out;
+	}
+out:
+	sqlite3_finalize(stmt);
+}
+
 static bool sql_open(void)
 {
 	sqlite3 *db;
@@ -87,6 +139,8 @@ static bool sql_open(void)
 	srv.db_cxn = db;
 	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
 		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
+	if (srv.db_stmt_sharelog == NULL || !*srv.db_stmt_sharelog)
+		srv.db_stmt_sharelog = strdup(DEFAULT_STMT_SHARELOG);
 	return true;
 }
 
