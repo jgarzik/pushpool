@@ -49,9 +49,9 @@ void applog(int prio, const char *fmt, ...)
 
 		len = 40 + strlen(fmt) + 2;
 		f = alloca(len);
-		sprintf(f, "[%llu.%llu] %s\n",
-			(unsigned long long) tv.tv_sec,
-			(unsigned long long) tv.tv_usec, fmt);
+		sprintf(f, "[%.6f] %s\n",
+			tv.tv_sec +
+			tv.tv_usec/1000000.0, fmt);
 		vfprintf(stderr, f, ap);	/* atomic write to stderr */
 	}
 	va_end(ap);
