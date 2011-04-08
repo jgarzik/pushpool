@@ -153,6 +153,7 @@ static void sql_close(void)
 
 struct server_db_ops sqlite_db_ops = {
 	.pwdb_lookup	= sql_pwdb_lookup,
+	.sharelog	= sql_sharelog,
 	.open		= sql_open,
 	.close		= sql_close,
 };
