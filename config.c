@@ -36,12 +36,6 @@
 
 #define EASY_TARGET "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000"
 
-#define DEFAULT_STMT_PWDB \
-	"SELECT password FROM pool_worker WHERE username = ?"
-#define DEFAULT_STMT_SHARELOG \
-	"insert into sharelog (time,rem_host, username our_result, upstream_result, reason, solution) \
-	values(?,?,?,?,?,?,?)"
-
 static char *read_commented_file(const char *fn)
 {
 	char linebuf[512], *line;
@@ -242,12 +236,10 @@ static void parse_database(const json_t *db_obj)
 	}
 
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
-	if (!db_st_pwdb)
-		db_st_pwdb = DEFAULT_STMT_PWDB;
+	if (db_st_pwdb)
 	srv.db_stmt_pwdb = strdup(db_st_pwdb);
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
-	if (!db_st_sharelog)
-		db_st_sharelog = DEFAULT_STMT_SHARELOG;
+	if (db_st_sharelog)
 	srv.db_stmt_sharelog = strdup(db_st_sharelog);
 }
 

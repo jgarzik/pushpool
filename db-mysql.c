@@ -34,6 +34,9 @@
 #undef list_add
 #include <mysql.h>
 
+#define DEFAULT_STMT_PWDB \
+	"SELECT password FROM pool_worker WHERE username = '%s'"
+
 static char *my_pwdb_lookup(const char *user)
 {
 	MYSQL *db = srv.db_cxn;
@@ -104,6 +107,8 @@ static bool my_open(void)
 		goto err_out_db;
 
 	srv.db_cxn = db;
+	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
+		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
 	return true;
 
 err_out_db:

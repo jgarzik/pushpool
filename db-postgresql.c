@@ -33,6 +33,9 @@
 
 #include "server.h"
 
+#define DEFAULT_STMT_PWDB \
+	"SELECT password FROM pool_worker WHERE username = $1"
+
 static char *pg_pwdb_lookup(const char *user)
 {
 	char *pw = NULL;
@@ -75,6 +78,8 @@ static bool pg_open(void)
 		pg_close();
 		return false;
 	}
+	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
+		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
 	return true;
 }
 

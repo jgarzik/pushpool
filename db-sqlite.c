@@ -29,6 +29,9 @@
 #include <sqlite3.h>
 #include "server.h"
 
+#define DEFAULT_STMT_PWDB \
+	"SELECT password FROM pool_worker WHERE username = ?"
+
 static char *sql_pwdb_lookup(const char *user)
 {
 	sqlite3 *db = srv.db_cxn;
@@ -82,6 +85,8 @@ static bool sql_open(void)
 	}
 
 	srv.db_cxn = db;
+	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
+		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
 	return true;
 }
 
