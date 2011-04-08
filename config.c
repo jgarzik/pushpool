@@ -199,14 +199,15 @@ static void parse_database(const json_t *db_obj)
 	db_name = json_string_value(json_object_get(db_obj, "name"));
 	db_un = json_string_value(json_object_get(db_obj, "username"));
 	db_pw = json_string_value(json_object_get(db_obj, "password"));
-	srv.db_sharelog = (json_is_true(json_object_get(db_obj, "sharelog")))
-			? true : false;
+	srv.db_sharelog = (json_is_true(json_object_get(db_obj, "sharelog"))) ?
+		true : false;
 
 	switch (srv.db_eng) {
 
 	case SDB_SQLITE:
 		if (db_host || db_port >= 0 || db_un || db_pw) {
-			applog(LOG_ERR, "sqlite does not support database host, port, username or password");
+			applog(LOG_ERR, "sqlite does not support database host"
+			       ", port, username or password");
 			exit(1);
 		}
 		if (!db_name || (*db_name != '/')) {
@@ -237,10 +238,10 @@ static void parse_database(const json_t *db_obj)
 
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
 	if (db_st_pwdb)
-	srv.db_stmt_pwdb = strdup(db_st_pwdb);
+		srv.db_stmt_pwdb = strdup(db_st_pwdb);
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
 	if (db_st_sharelog)
-	srv.db_stmt_sharelog = strdup(db_st_sharelog);
+		srv.db_stmt_sharelog = strdup(db_st_sharelog);
 }
 
 void read_config(void)
