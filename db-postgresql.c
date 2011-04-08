@@ -35,6 +35,9 @@
 
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = $1"
+#define DEFAULT_STMT_SHARELOG \
+	"insert into shares (rem_host, username, our_result, \
+	upstream_result, reason, solution) values($1, $2, $3, $4, $5, decode($6, 'hex'))"
 
 static char *pg_pwdb_lookup(const char *user)
 {
@@ -55,6 +58,25 @@ static char *pg_pwdb_lookup(const char *user)
 out:
 	PQclear(res);
 	return pw;
+}
+
+static void pg_sharelog(const char *rem_host, const char *username,
+			const char *our_result,
+			const char *upstream_result, const char *reason,
+			const char *solution)
+{
+	PGresult *res;
+	/* PG does a fine job with timestamps so we won't bother. */
+	const char *paramvalues[] = { rem_host, username, our_result,
+		upstream_result, reason, solution
+	};
+	res =
+	    PQexecParams(srv.db_cxn, srv.db_stmt_sharelog, 6, NULL,
+			 paramvalues, NULL, NULL, 0);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		applog(LOG_ERR, "pg_sharelog failed: %s",
+		       PQerrorMessage(srv.db_cxn));
+	PQclear(res);
 }
 
 static void pg_close(void)
@@ -80,11 +102,14 @@ static bool pg_open(void)
 	}
 	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
 		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
+	if (srv.db_stmt_sharelog == NULL || !*srv.db_stmt_sharelog)
+		srv.db_stmt_sharelog = strdup(DEFAULT_STMT_SHARELOG);
 	return true;
 }
 
 struct server_db_ops postgresql_db_ops = {
 	.pwdb_lookup	= pg_pwdb_lookup,
+	.sharelog	= pg_sharelog,
 	.open		= pg_open,
 	.close		= pg_close,
 };
