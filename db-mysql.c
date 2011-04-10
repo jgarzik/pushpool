@@ -35,57 +35,61 @@
 #include <mysql.h>
 
 #define DEFAULT_STMT_PWDB \
-	"SELECT password FROM pool_worker WHERE username = '%s'"
+	"SELECT password FROM pool_worker WHERE username = ?"
 
 static char *my_pwdb_lookup(const char *user)
 {
 	MYSQL *db = srv.db_cxn;
-	MYSQL_RES *res;
-	MYSQL_ROW row;
-	unsigned long *lengths, pass_len;
-	char *password = NULL, *sql;
-	int myrc;
+	MYSQL_STMT *stmt;
+	MYSQL_BIND bind_param[1], bind_res[1];
+	unsigned long bind_lengths[1], bind_res_lengths[1];
+	char password[256], *pass_ret;
+	int pass_len;
 
-	if (strchr(user, '\''))
+	stmt = mysql_stmt_init(db);
+	if (!stmt)
 		return NULL;
 
-	if (asprintf(&sql, srv.db_stmt_pwdb, user) < 0)
-		return NULL;
+	memset(bind_param, 0, sizeof(bind_param));
+	bind_param[0].buffer_type = MYSQL_TYPE_STRING;
+	bind_param[0].buffer = (char *) user;
+	bind_param[0].buffer_length = bind_lengths[0] = strlen(user);
+	bind_param[0].length = &bind_lengths[0];
 
-	myrc = mysql_query(db, sql);
+	memset(bind_res, 0, sizeof(bind_res));
+	bind_res[0].buffer_type = MYSQL_TYPE_STRING;
+	bind_res[0].buffer = password;
+	bind_res[0].buffer_length = sizeof(password);
+	bind_res[0].length = &bind_res_lengths[0];
 
-	free(sql);
+	if (mysql_stmt_prepare(stmt, srv.db_stmt_pwdb,
+			       strlen(srv.db_stmt_pwdb)) ||
+	    mysql_stmt_bind_param(stmt, bind_param) ||
+	    mysql_stmt_execute(stmt) ||
+	    mysql_stmt_bind_result(stmt, bind_res) ||
+	    mysql_stmt_store_result(stmt) ||
+	    mysql_stmt_fetch(stmt))
+		goto err_out;
 
-	if (myrc) {
-		applog(LOG_ERR, "mysql query failed: %s", mysql_error(db));
-		return NULL;
-	}
-
-	res = mysql_store_result(db);
-	if (!res) {
-		applog(LOG_ERR, "no mysql results: %s", mysql_error(db));
-		return NULL;
-	}
-
-	row = mysql_fetch_row(res);
-	if (!row || !row[0])
-		goto out;
-
-	lengths = mysql_fetch_lengths(res);
-	pass_len = lengths[0];
+	pass_len = bind_res_lengths[0];
 	if (!pass_len)
-		goto out;
+		goto err_out;
 
-	password = malloc(pass_len + 1);
-	if (!password)
-		goto out;
+	pass_ret = malloc(pass_len + 1);
+	if (!pass_ret)
+		goto err_out;
 	
-	memcpy(password, row[0], pass_len);
-	password[pass_len] = 0;
+	memcpy(pass_ret, password, pass_len);
+	pass_ret[pass_len] = 0;
 
-out:
-	mysql_free_result(res);
-	return password;
+	mysql_stmt_close(stmt);
+	return pass_ret;
+
+err_out:
+	mysql_stmt_close(stmt);
+
+	applog(LOG_ERR, "mysql pwdb query failed");
+	return NULL;
 }
 
 static bool my_open(void)
