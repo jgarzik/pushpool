@@ -34,7 +34,7 @@
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = ?"
 #define DEFAULT_STMT_SHARELOG \
-	"insert into shares (time,rem_host, username our_result, upstream_result, reason, solution) \
+	"insert into shares (time,rem_host, username, our_result, upstream_result, reason, solution) \
 	values(?,?,?,?,?,?,?)"
 
 static char *sql_pwdb_lookup(const char *user)
