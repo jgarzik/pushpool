@@ -36,6 +36,20 @@
 
 #define DEFAULT_STMT_PWDB \
 	"SELECT password FROM pool_worker WHERE username = ?"
+#define DEFAULT_STMT_SHARELOG \
+	"INSERT INTO shares (rem_host, username, our_result, "		\
+	"                    upstream_result, reason, solution) "	\
+	"VALUES(?,?,?,?,?,?)"
+
+static void bind_instr(MYSQL_BIND *bind_param, unsigned long *bind_lengths,
+		       unsigned int idx, const char *s)
+{
+	bind_param[idx].buffer_type = MYSQL_TYPE_STRING;
+	bind_param[idx].buffer = (char *) s;
+	bind_lengths[idx] =
+	bind_param[idx].buffer_length = s ? strlen(s) : idx;
+	bind_param[idx].length = &bind_lengths[idx];
+}
 
 static char *my_pwdb_lookup(const char *user)
 {
@@ -51,10 +65,7 @@ static char *my_pwdb_lookup(const char *user)
 		return NULL;
 
 	memset(bind_param, 0, sizeof(bind_param));
-	bind_param[0].buffer_type = MYSQL_TYPE_STRING;
-	bind_param[0].buffer = (char *) user;
-	bind_param[0].buffer_length = bind_lengths[0] = strlen(user);
-	bind_param[0].length = &bind_lengths[0];
+	bind_instr(bind_param, bind_lengths, 0, user);
 
 	memset(bind_res, 0, sizeof(bind_res));
 	bind_res[0].buffer_type = MYSQL_TYPE_STRING;
@@ -90,6 +101,45 @@ err_out:
 
 	applog(LOG_ERR, "mysql pwdb query failed");
 	return NULL;
+}
+
+static bool my_sharelog(const char *rem_host, const char *username,
+			const char *our_result, const char *upstream_result,
+			const char *reason, const char *solution)
+{
+	MYSQL *db = srv.db_cxn;
+	MYSQL_STMT *stmt;
+	MYSQL_BIND bind_param[6];
+	unsigned long bind_lengths[6];
+	bool rc = false;
+
+	stmt = mysql_stmt_init(db);
+	if (!stmt)
+		return false;
+
+	memset(bind_param, 0, sizeof(bind_param));
+	bind_instr(bind_param, bind_lengths, 0, rem_host);
+	bind_instr(bind_param, bind_lengths, 1, username);
+	bind_instr(bind_param, bind_lengths, 2, our_result);
+	bind_instr(bind_param, bind_lengths, 3, upstream_result);
+	bind_instr(bind_param, bind_lengths, 4, reason);
+	bind_instr(bind_param, bind_lengths, 5, solution);
+
+	if (mysql_stmt_prepare(stmt, srv.db_stmt_sharelog,
+			       strlen(srv.db_stmt_sharelog)) ||
+	    mysql_stmt_bind_param(stmt, bind_param) ||
+	    mysql_stmt_execute(stmt))
+		goto err_out;
+
+	rc = true;
+
+out:
+	mysql_stmt_close(stmt);
+	return rc;
+
+err_out:
+	applog(LOG_ERR, "mysql sharelog failed");
+	goto out;
 }
 
 static bool my_open(void)
@@ -133,6 +183,7 @@ static void my_close(void)
 
 struct server_db_ops mysql_db_ops = {
 	.pwdb_lookup	= my_pwdb_lookup,
+	.sharelog	= my_sharelog,
 	.open		= my_open,
 	.close		= my_close,
 };
