@@ -102,7 +102,7 @@ struct genlist {
 
 struct server_db_ops {
 	char	* (*pwdb_lookup)(const char *user);
-	void	(*sharelog)(const char *rem_host, const char *username,
+	bool	(*sharelog)(const char *rem_host, const char *username,
 			    const char *our_result, const char *upstream_result,
 			    const char *reason, const char *solution);
 	bool	(*open)(void);

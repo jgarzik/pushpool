@@ -60,7 +60,7 @@ out:
 	return pw;
 }
 
-static void pg_sharelog(const char *rem_host, const char *username,
+static bool pg_sharelog(const char *rem_host, const char *username,
 			const char *our_result,
 			const char *upstream_result, const char *reason,
 			const char *solution)
@@ -77,6 +77,8 @@ static void pg_sharelog(const char *rem_host, const char *username,
 		applog(LOG_ERR, "pg_sharelog failed: %s",
 		       PQerrorMessage(srv.db_cxn));
 	PQclear(res);
+
+	return true;
 }
 
 static void pg_close(void)
