@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+#
+# blkmond - monitor bitcoin P2P network for new blocks
+#
+
 import struct
 import socket
 import asyncore
