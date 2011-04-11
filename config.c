@@ -239,7 +239,8 @@ static void parse_database(const json_t *db_obj)
 	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
 	if (db_st_pwdb)
 		srv.db_stmt_pwdb = strdup(db_st_pwdb);
-	db_st_pwdb = json_string_value(json_object_get(db_obj, "stmt.pwdb"));
+	db_st_sharelog = json_string_value(
+		json_object_get(db_obj, "stmt.sharelog"));
 	if (db_st_sharelog)
 		srv.db_stmt_sharelog = strdup(db_st_sharelog);
 }
