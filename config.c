@@ -153,6 +153,52 @@ static void parse_listen(const json_t *listeners)
 	}
 }
 
+static void parse_memcached_server(const json_t *obj)
+{
+	const json_t *tmp;
+	const char *host;
+	int port = -1;
+
+	if (!json_is_object(obj))
+		return;
+
+	host = json_string_value(json_object_get(obj, "host"));
+	if (!host || !*host)
+		host = "127.0.0.1";
+
+	tmp = json_object_get(obj, "port");
+	if (json_is_integer(tmp)) {
+		port = json_integer_value(tmp);
+		if (port < 1 || port > 65535) {
+			applog(LOG_ERR, "invalid memcached port");
+			exit(1);
+		}
+	} else
+		port = 11211;
+	
+	memcached_server_add(srv.mc, host, port);
+}
+
+static void parse_memcached(const json_t *obj)
+{
+	json_t *servers;
+
+	if (!json_is_object(obj))
+		return;
+
+	servers = json_object_get(obj, "servers");
+	if (json_is_array(servers)) {
+		unsigned int i, size = json_array_size(servers);
+
+		for (i = 0; i < size; i++) {
+			json_t *server_obj;
+
+			server_obj = json_array_get(servers, i);
+			parse_memcached_server(server_obj);
+		}
+	}
+}
+
 static void parse_database(const json_t *db_obj)
 {
 	const json_t *tmp;
@@ -272,6 +318,7 @@ void read_config(void)
 
 	parse_listen(json_object_get(jcfg, "listen"));
 	parse_database(json_object_get(jcfg, "database"));
+	parse_memcached(json_object_get(jcfg, "memcached"));
 
 	if (elist_empty(&srv.listeners)) {
 		applog(LOG_ERR, "error: no listen addresses specified");

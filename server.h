@@ -28,6 +28,7 @@
 #include <netinet/in.h>
 #include <jansson.h>
 #include <curl/curl.h>
+#include <libmemcached/memcached.h>
 #include "elist.h"
 #include "ubbp.h"
 #include "protocol.h"
@@ -44,12 +45,6 @@
 #endif
 
 struct hist;
-
-struct user_cred {
-	char			username[64 + 1]; /* user */
-	char			password[256 + 1]; /* password */
-	time_t			exp_time;	/* expiration time (absolute) */
-};
 
 struct client {
 	struct sockaddr_in6	addr;		/* inet address */
@@ -160,11 +155,12 @@ struct server {
 	struct htab		*workers;
 	struct elist_head	work_log;
 
-	struct htab		*cred_cache;
 	unsigned int		cred_expire;
 
 	struct elist_head	lp_waiters;
 	bool			disable_lp;
+
+	memcached_st		*mc;
 
 	struct elist_head	listeners;
 	struct elist_head	sockets;	/* points into listeners */

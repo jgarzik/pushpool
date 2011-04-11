@@ -47,6 +47,13 @@
 		  "SELECT password FROM pool_worker WHERE username = $1"
 	},
 
+	# cache settings
+	"memcached" : {
+		"servers" : [
+			{ "host" : "127.0.0.1", "port" : 11211 }
+		]
+	},
+
 	"pid" : "/tmp/pushpoold.pid",
 
 	# overrides local hostname detection
@@ -58,8 +65,8 @@
 	# the server assumes longpolling (w/ SIGUSR1 called for each blk)
 	"longpoll.disable" : false,
 
-	# length of time to cache username/password credentials
-	"auth.cred_cache.expire" : 30,
+	# length of time to cache username/password credentials, in seconds
+	"auth.cred_cache.expire" : 75,
 
 	# RPC settings
 	"rpc.url" : "http://127.0.0.1:8332/",

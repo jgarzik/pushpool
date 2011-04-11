@@ -107,7 +107,7 @@ struct server srv = {
 #endif
 	.db_port	= -1,
 
-	.cred_expire	= 30,
+	.cred_expire	= 75,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -1200,6 +1200,14 @@ int main (int argc, char *argv[])
 
 	srv.evbase_main = event_init();
 
+	/* must initialize memcached_st obj prior to reading config */
+	srv.mc = memcached_create(NULL);
+	if (!srv.mc) {
+		applog(LOG_ERR, "memcached init failed");
+		goto err_out;
+	}
+	memcached_behavior_set(srv.mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL, 1);
+
 	/*
 	 * Next, read master configuration. This should be done as
 	 * early as possible, so that tunables are available.
@@ -1247,8 +1255,7 @@ int main (int argc, char *argv[])
 	}
 
 	srv.workers = htab_str_new(false, true);
-	srv.cred_cache = htab_str_new(false, true);
-	if (!srv.workers || !srv.cred_cache) {
+	if (!srv.workers) {
 		applog(LOG_ERR, "htab init failed");
 		goto err_out;
 	}
@@ -1315,7 +1322,7 @@ err_out:
 		worker_log_expire(time(NULL) + 1);
 		htab_free(srv.workers);
 
-		htab_free(srv.cred_cache);
+		memcached_free(srv.mc);
 
 		event_base_free(srv.evbase_main);
 	}

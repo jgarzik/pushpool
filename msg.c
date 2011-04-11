@@ -64,42 +64,30 @@ static const char *bc_err_str[] = {
 
 char *pwdb_lookup(const char *user)
 {
-	struct user_cred *cred = NULL;
-	time_t now = time(NULL);
 	char *pass = NULL;
+	char cred_key[256];
+	uint32_t out_flags;
+	size_t out_len;
+	memcached_return_t rc;
 
-	cred = htab_get(srv.cred_cache, user);
+	sprintf(cred_key, "/pushpoold/cred_cache/%s", user);
 
-	if (!cred || (now > cred->exp_time)) {
-		pass = srv.db_ops->pwdb_lookup(user);
-		if (!pass)
-			return NULL;
+	pass = memcached_get(srv.mc, cred_key, strlen(cred_key) + 1,
+			     &out_len, &out_flags, &rc);
+	if (rc == MEMCACHED_SUCCESS)
+		return pass;		/* may be NULL, for negative caching */
 
-		if (cred) {
-			strncpy(cred->password, pass, sizeof(cred->password)-1);
-			cred->exp_time = now + srv.cred_expire;
-		} else {
-			cred = calloc(1, sizeof(*cred));
-			if (!cred)
-				goto err_out;
+	pass = srv.db_ops->pwdb_lookup(user);
 
-			strncpy(cred->username, user, sizeof(cred->username)-1);
-			strncpy(cred->password, pass, sizeof(cred->password)-1);
-			cred->exp_time = now + srv.cred_expire;
+	rc = memcached_set(srv.mc, cred_key, strlen(cred_key) + 1,
+			   pass,
+			   pass ? strlen(pass) + 1 : 0,
+			   srv.cred_expire, 0);
+	if (rc != MEMCACHED_SUCCESS)
+		applog(LOG_WARNING, "memcached store(%s) failed: %s",
+		       cred_key, memcached_strerror(srv.mc, rc));
 
-			if (!htab_put(srv.cred_cache, cred->username, cred))
-				goto err_out;
-		}
-
-		free(pass);
-	}
-
-	return strdup(cred->password);
-
-err_out:
-	free(cred);
-	free(pass);
-	return NULL;
+	return pass;
 }
 
 void worker_log_expire(time_t expire_time)
