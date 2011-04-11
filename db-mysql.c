@@ -44,11 +44,16 @@
 static void bind_instr(MYSQL_BIND *bind_param, unsigned long *bind_lengths,
 		       unsigned int idx, const char *s)
 {
-	bind_param[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind_param[idx].buffer = (char *) s;
-	bind_lengths[idx] =
-	bind_param[idx].buffer_length = s ? strlen(s) : idx;
-	bind_param[idx].length = &bind_lengths[idx];
+	if (s) {
+		bind_param[idx].buffer_type = MYSQL_TYPE_STRING;
+		bind_param[idx].buffer = (char *) s;
+		bind_lengths[idx] =
+		bind_param[idx].buffer_length = strlen(s);
+		bind_param[idx].length = &bind_lengths[idx];
+	} else {
+		bind_param[idx].buffer_type = MYSQL_TYPE_NULL;
+		bind_param[idx].length = &bind_lengths[idx];
+	}
 }
 
 static char *my_pwdb_lookup(const char *user)
@@ -65,9 +70,11 @@ static char *my_pwdb_lookup(const char *user)
 		return NULL;
 
 	memset(bind_param, 0, sizeof(bind_param));
+	memset(bind_lengths, 0, sizeof(bind_lengths));
 	bind_instr(bind_param, bind_lengths, 0, user);
 
 	memset(bind_res, 0, sizeof(bind_res));
+	memset(bind_res_lengths, 0, sizeof(bind_res_lengths));
 	bind_res[0].buffer_type = MYSQL_TYPE_STRING;
 	bind_res[0].buffer = password;
 	bind_res[0].buffer_length = sizeof(password);
@@ -118,6 +125,7 @@ static bool my_sharelog(const char *rem_host, const char *username,
 		return false;
 
 	memset(bind_param, 0, sizeof(bind_param));
+	memset(bind_lengths, 0, sizeof(bind_lengths));
 	bind_instr(bind_param, bind_lengths, 0, rem_host);
 	bind_instr(bind_param, bind_lengths, 1, username);
 	bind_instr(bind_param, bind_lengths, 2, our_result);
@@ -163,6 +171,8 @@ static bool my_open(void)
 	srv.db_cxn = db;
 	if (srv.db_stmt_pwdb == NULL || !*srv.db_stmt_pwdb)
 		srv.db_stmt_pwdb = strdup(DEFAULT_STMT_PWDB);
+	if (srv.db_stmt_sharelog == NULL || !*srv.db_stmt_sharelog)
+		srv.db_stmt_sharelog = strdup(DEFAULT_STMT_SHARELOG);
 	return true;
 
 err_out_db:

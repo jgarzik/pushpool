@@ -39,12 +39,15 @@
 #ifndef MIN
 #define	MIN(a,b) (((a)<(b))?(a):(b))
 #endif
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#endif
 
 struct hist;
 
 struct user_cred {
 	char			username[64 + 1]; /* user */
-	char			*password;	/* alloc'd password */
+	char			password[256 + 1]; /* password */
 	time_t			exp_time;	/* expiration time (absolute) */
 };
 

@@ -64,7 +64,7 @@ static const char *bc_err_str[] = {
 
 char *pwdb_lookup(const char *user)
 {
-	struct user_cred *cred;
+	struct user_cred *cred = NULL;
 	time_t now = time(NULL);
 	char *pass = NULL;
 
@@ -76,29 +76,30 @@ char *pwdb_lookup(const char *user)
 			return NULL;
 
 		if (cred) {
-			free(cred->password);
-			cred->password = pass;
+			strncpy(cred->password, pass, sizeof(cred->password)-1);
 			cred->exp_time = now + srv.cred_expire;
 		} else {
 			cred = calloc(1, sizeof(*cred));
-			if (!cred) {
-				free(pass);
-				return NULL;
-			}
+			if (!cred)
+				goto err_out;
 
-			strncpy(cred->username, user, sizeof(cred->username));
-			cred->password = pass;
+			strncpy(cred->username, user, sizeof(cred->username)-1);
+			strncpy(cred->password, pass, sizeof(cred->password)-1);
 			cred->exp_time = now + srv.cred_expire;
 
-			if (!htab_put(srv.cred_cache, cred->username, cred)) {
-				free(cred);
-				free(pass);
-				return NULL;
-			}
+			if (!htab_put(srv.cred_cache, cred->username, cred))
+				goto err_out;
 		}
+
+		free(pass);
 	}
 
 	return strdup(cred->password);
+
+err_out:
+	free(cred);
+	free(pass);
+	return NULL;
 }
 
 void worker_log_expire(time_t expire_time)

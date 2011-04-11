@@ -1300,6 +1300,9 @@ err_out:
 			close(srv.pid_fd);
 		free(srv.pid_file);
 
+		free(srv.ourhost);
+		free(srv.rpc_url);
+		free(srv.rpc_userpass);
 		json_decref(srv.easy_target);
 
 		free(srv.db_host);
@@ -1307,15 +1310,13 @@ err_out:
 		free(srv.db_username);
 		free(srv.db_password);
 		free(srv.db_stmt_pwdb);
+		free(srv.db_stmt_sharelog);
 
 		worker_log_expire(time(NULL) + 1);
 		htab_free(srv.workers);
 
 		htab_free(srv.cred_cache);
 
-		free(srv.ourhost);
-		free(srv.rpc_url);
-		free(srv.rpc_userpass);
 		event_base_free(srv.evbase_main);
 	}
 

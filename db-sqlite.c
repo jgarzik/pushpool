@@ -83,22 +83,15 @@ static bool sql_sharelog(const char *rem_host, const char *username,
 			 const char *reason, const char *solution)
 {
 	struct timeval tv = { };
-	char timestr[128];
 	sqlite3_stmt *stmt = NULL;
-	struct tm tm;
 	int rc, i;
-	const char *bind_values[] = { timestr, rem_host, username,
+	const char *bind_values[] = { NULL, rem_host, username,
 		our_result, upstream_result,
-		reason, solution, NULL
+		reason, solution
 	};
 
 	gettimeofday(&tv, NULL);
-	gmtime_r(&tv.tv_sec, &tm);
-	snprintf(timestr, 128, "%d-%02d-%02d %02d:%02d:%02.6f",
-		 tm.tm_year + 1900,
-		 tm.tm_mon + 1,
-		 tm.tm_mday,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec + tv.tv_usec / 1000000.0);
+
 	rc = sqlite3_prepare_v2(srv.db_cxn, srv.db_stmt_sharelog,
 				-1, &stmt, NULL);
 	if (rc != SQLITE_OK) {
@@ -106,7 +99,15 @@ static bool sql_sharelog(const char *rem_host, const char *username,
 		       sqlite3_errmsg(srv.db_cxn));
 		goto out;
 	}
-	for (i = 0; bind_values[i] != NULL; i++) {
+
+	i = 0;
+	rc = sqlite3_bind_int64(stmt, i + 1, tv.tv_sec);
+	if (rc != SQLITE_OK) {
+		applog(LOG_ERR, "sql_sharelog: bind(%d) failed: %s",
+		       i + 1, sqlite3_errmsg(srv.db_cxn));
+		goto out;
+	}
+	for (i = 1; i < ARRAY_SIZE(bind_values); i++) {
 		rc = sqlite3_bind_text(stmt, i + 1, bind_values[i],
 				       -1, SQLITE_STATIC);
 		if (rc != SQLITE_OK) {
@@ -131,7 +132,7 @@ static bool sql_open(void)
 {
 	sqlite3 *db;
 	int sqlrc = sqlite3_open_v2(srv.db_name, &db,
-				SQLITE_OPEN_READONLY, NULL);
+				SQLITE_OPEN_READWRITE, NULL);
 	if (sqlrc != SQLITE_OK) {
 		applog(LOG_ERR, "sqlite3_open(%s) failed: %d",
 		       srv.db_name, sqlrc);
