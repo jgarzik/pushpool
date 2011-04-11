@@ -1,10 +1,11 @@
 
-EXTRA_DIST	= example-cfg.json
+EXTRA_DIST	= example-cfg.json example-blkmon.cfg blkmond
 
 INCLUDES	= -fno-strict-aliasing $(PTHREAD_FLAGS) @SQLITE3_CFLAGS@ \
 		@MYSQL_CFLAGS@ @POSTGRESQL_CFLAGS@
 
-bin_PROGRAMS	= pushpoold
+sbin_SCRIPTS	= blkmond
+sbin_PROGRAMS	= pushpoold
 
 pushpoold_SOURCES = anet.h elist.h htab.h protocol.h server.h ubbp.h	\
 		    hist.c htab.c anet.c config.c msg.c server.c util.c \
