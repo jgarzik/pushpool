@@ -29,7 +29,7 @@
 		"password" : "mypass",
 
 		"stmt.pwdb" :
-		  "SELECT password FROM pool_worker WHERE username = '%s'"
+		  "SELECT password FROM pool_worker WHERE username = ?"
 
 		# ... or ...
 
