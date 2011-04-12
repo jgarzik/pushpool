@@ -175,7 +175,7 @@ static void parse_memcached_server(const json_t *obj)
 		}
 	} else
 		port = 11211;
-	
+
 	memcached_server_add(srv.mc, host, port);
 }
 

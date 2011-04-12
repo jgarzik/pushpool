@@ -96,7 +96,7 @@ static char *my_pwdb_lookup(const char *user)
 	pass_ret = malloc(pass_len + 1);
 	if (!pass_ret)
 		goto err_out;
-	
+
 	memcpy(pass_ret, password, pass_len);
 	pass_ret[pass_len] = 0;
 

@@ -30,12 +30,12 @@ def new_block_event():
 	except (OSError, IOError), e:
 		print "ERROR: failed to read", settings['pid'], ":", str(e)
 		return
-	
+
 	m = re.search('(\d+)', line)
 	if m is None:
 		print "ERROR parsing", settings['pid']
 		return
-	
+
 	pid = int(m.group(1))
 
 	print "New block noticed, sending SIGUSR1 signal to PID", pid
