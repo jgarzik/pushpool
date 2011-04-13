@@ -334,7 +334,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	/* issue JSON-RPC request */
 	val = json_rpc_call(curl, srv.rpc_url, srv.rpc_userpass, s);
 	if (!val) {
-		fprintf(stderr, "submit_work json_rpc_call failed\n");
+		applog(LOG_ERR, "submit_work json_rpc_call failed");
 		goto out;
 	}
 
@@ -373,7 +373,7 @@ static bool submit_bin_work(const char *remote_host, const char *auth_user,
 	/* build hex string */
 	hexstr = bin2hex(data, 128);
 	if (!hexstr) {
-		fprintf(stderr, "submit_work OOM\n");
+		applog(LOG_ERR, "submit_work OOM");
 		goto out;
 	}
 

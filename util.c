@@ -267,13 +267,13 @@ json_t *json_rpc_call(CURL *curl, const char *url,
 
 	rc = curl_easy_perform(curl);
 	if (rc) {
-		fprintf(stderr, "HTTP request failed: %s\n", curl_err_str);
+		applog(LOG_ERR, "HTTP request failed: %s", curl_err_str);
 		goto err_out;
 	}
 
 	val = json_loads(all_data.buf, &err);
 	if (!val) {
-		fprintf(stderr, "JSON decode failed(%d): %s\n", err.line, err.text);
+		applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
 		goto err_out;
 	}
 
@@ -298,7 +298,7 @@ json_t *json_rpc_call(CURL *curl, const char *url,
 		else
 			s = strdup("(unknown reason)");
 
-		fprintf(stderr, "JSON-RPC call failed: %s\n", s);
+		applog(LOG_ERR, "JSON-RPC call failed: %s", s);
 
 		free(s);
 
@@ -337,7 +337,7 @@ bool hex2bin(unsigned char *p, const char *hexstr, size_t len)
 		unsigned int v;
 
 		if (!hexstr[1]) {
-			fprintf(stderr, "hex2bin str truncated\n");
+			applog(LOG_ERR, "hex2bin str truncated");
 			return false;
 		}
 
@@ -346,7 +346,7 @@ bool hex2bin(unsigned char *p, const char *hexstr, size_t len)
 		hex_byte[2] = 0;
 
 		if (sscanf(hex_byte, "%x", &v) != 1) {
-			fprintf(stderr, "hex2bin sscanf '%s' failed\n",
+			applog(LOG_ERR, "hex2bin sscanf '%s' failed",
 				hex_byte);
 			return false;
 		}
