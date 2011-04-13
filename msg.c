@@ -70,23 +70,27 @@ char *pwdb_lookup(const char *user)
 	size_t out_len;
 	memcached_return_t rc;
 
-	snprintf(cred_key, sizeof(cred_key),
-		 "/pushpoold/cred_cache/%s", user);
+	if (srv.mc) {
+		snprintf(cred_key, sizeof(cred_key),
+			 "/pushpoold/cred_cache/%s", user);
 
-	pass = memcached_get(srv.mc, cred_key, strlen(cred_key) + 1,
-			     &out_len, &out_flags, &rc);
-	if (rc == MEMCACHED_SUCCESS)
-		return pass;		/* may be NULL, for negative caching */
+		pass = memcached_get(srv.mc, cred_key, strlen(cred_key) + 1,
+				     &out_len, &out_flags, &rc);
+		if (rc == MEMCACHED_SUCCESS)
+			return pass;		/* may be NULL, for negative caching */
+	}
 
 	pass = srv.db_ops->pwdb_lookup(user);
 
-	rc = memcached_set(srv.mc, cred_key, strlen(cred_key) + 1,
-			   pass,
-			   pass ? strlen(pass) + 1 : 0,
-			   srv.cred_expire, 0);
-	if (rc != MEMCACHED_SUCCESS)
-		applog(LOG_WARNING, "memcached store(%s) failed: %s",
-		       cred_key, memcached_strerror(srv.mc, rc));
+	if (srv.mc) {
+		rc = memcached_set(srv.mc, cred_key, strlen(cred_key) + 1,
+				   pass,
+				   pass ? strlen(pass) + 1 : 0,
+				   srv.cred_expire, 0);
+		if (rc != MEMCACHED_SUCCESS)
+			applog(LOG_WARNING, "memcached store(%s) failed: %s",
+			       cred_key, memcached_strerror(srv.mc, rc));
+	}
 
 	return pass;
 }

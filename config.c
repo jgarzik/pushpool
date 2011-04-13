@@ -183,8 +183,12 @@ static void parse_memcached(const json_t *obj)
 {
 	json_t *servers;
 
-	if (!json_is_object(obj))
+	if (!json_is_object(obj)) {
+		/* No memcached config so don't use it. */
+		memcached_free(srv.mc);
+		srv.mc = NULL;
 		return;
+	}
 
 	servers = json_object_get(obj, "servers");
 	if (json_is_array(servers)) {
