@@ -70,7 +70,8 @@ char *pwdb_lookup(const char *user)
 	size_t out_len;
 	memcached_return_t rc;
 
-	sprintf(cred_key, "/pushpoold/cred_cache/%s", user);
+	snprintf(cred_key, sizeof(cred_key),
+		 "/pushpoold/cred_cache/%s", user);
 
 	pass = memcached_get(srv.mc, cred_key, strlen(cred_key) + 1,
 			     &out_len, &out_flags, &rc);
