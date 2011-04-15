@@ -1104,7 +1104,8 @@ static int log_reopen(int fd, const char *fn)
 
 static void usr1_signal(int signo)
 {
-	applog(LOG_INFO, "USR1 signal received, flushing LP waiters");
+	if (debugging)
+		applog(LOG_INFO, "USR1 signal received, flushing LP waiters");
 
 	initiate_lp_flush = true;
 	event_loopbreak();
