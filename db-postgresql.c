@@ -39,11 +39,27 @@
 	"insert into shares (rem_host, username, our_result, \
 	upstream_result, reason, solution) values($1, $2, $3, $4, $5, decode($6, 'hex'))"
 
+static bool pg_conncheck(void)
+{
+	if (PQstatus(srv.db_cxn) != CONNECTION_OK) {
+		applog(LOG_WARNING,
+		       "Connection to PostgreSQL lost: reconnecting.");
+		PQreset(srv.db_cxn);
+		if (PQstatus(srv.db_cxn) != CONNECTION_OK) {
+			applog(LOG_ERR, "Reconnect attempt failed.");
+			return false;
+		}
+	}
+	return true;
+}
+
 static char *pg_pwdb_lookup(const char *user)
 {
 	char *pw = NULL;
 	PGresult *res;
 	const char *paramvalues[] = { user };
+	if (!pg_conncheck())
+		return NULL;
 	res =
 	    PQexecParams(srv.db_cxn, srv.db_stmt_pwdb, 1, NULL,
 			 paramvalues, NULL, NULL, 0);
@@ -70,6 +86,8 @@ static bool pg_sharelog(const char *rem_host, const char *username,
 	const char *paramvalues[] = { rem_host, username, our_result,
 		upstream_result, reason, solution
 	};
+	if (!pg_conncheck())
+		return false;
 	res =
 	    PQexecParams(srv.db_cxn, srv.db_stmt_sharelog, 6, NULL,
 			 paramvalues, NULL, NULL, 0);
