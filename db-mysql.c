@@ -153,6 +153,7 @@ err_out:
 static bool my_open(void)
 {
 	MYSQL *db;
+	my_bool reconnect = 1;
 
 	if (mysql_library_init(0, NULL, NULL))
 		goto err_out;
@@ -162,6 +163,9 @@ static bool my_open(void)
 		goto err_out_lib;
 
 	mysql_ssl_set(db, NULL, NULL, NULL, NULL, NULL);
+	mysql_options(db, MYSQL_OPT_RECONNECT, &reconnect);
+	mysql_options(db, MYSQL_OPT_COMPRESS, NULL);
+
 	if (!mysql_real_connect(db, srv.db_host, srv.db_username,
 				srv.db_password, srv.db_name,
 				srv.db_port > 0 ? srv.db_port : 0,
