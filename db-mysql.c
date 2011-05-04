@@ -69,9 +69,19 @@ static char *my_pwdb_lookup(const char *user)
 	if (!stmt)
 		return NULL;
 
-	memset(bind_param, 0, sizeof(bind_param));
-	memset(bind_lengths, 0, sizeof(bind_lengths));
-	bind_instr(bind_param, bind_lengths, 0, user);
+	if (mysql_stmt_prepare(stmt, srv.db_stmt_pwdb,
+			       strlen(srv.db_stmt_pwdb)))
+		goto err_out;
+
+	if (mysql_stmt_param_count(stmt))
+	{
+		memset(bind_param, 0, sizeof(bind_param));
+		memset(bind_lengths, 0, sizeof(bind_lengths));
+		bind_instr(bind_param, bind_lengths, 0, user);
+
+		if (mysql_stmt_bind_param(stmt, bind_param))
+			goto err_out;
+	}
 
 	memset(bind_res, 0, sizeof(bind_res));
 	memset(bind_res_lengths, 0, sizeof(bind_res_lengths));
@@ -80,9 +90,7 @@ static char *my_pwdb_lookup(const char *user)
 	bind_res[0].buffer_length = sizeof(password);
 	bind_res[0].length = &bind_res_lengths[0];
 
-	if (mysql_stmt_prepare(stmt, srv.db_stmt_pwdb,
-			       strlen(srv.db_stmt_pwdb)) ||
-	    mysql_stmt_bind_param(stmt, bind_param) ||
+	if (
 	    mysql_stmt_execute(stmt) ||
 	    mysql_stmt_bind_result(stmt, bind_res) ||
 	    mysql_stmt_store_result(stmt) ||
