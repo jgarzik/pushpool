@@ -98,8 +98,6 @@ static char *my_pwdb_lookup(const char *user)
 		goto err_out;
 
 	pass_len = bind_res_lengths[0];
-	if (!pass_len)
-		goto err_out;
 
 	pass_ret = malloc(pass_len + 1);
 	if (!pass_ret)
