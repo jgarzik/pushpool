@@ -150,10 +150,21 @@ static bool work_in_log(const char *username, const unsigned char *data)
 
 	elist_for_each_entry(ent, &worker->log, log_node) {
 		/* check submitted block matches sent block,
-		 * excluding final 4 bytes (nonce)
+		 * excluding timestamp and nonce
 		 */
-		if (!memcmp(ent->data, data, 80 - 4))
+		if (!memcmp(ent->data, data, 68) && !memcmp(ent->data + 72, data + 72, 4))
+		{
+			/* verify timestamp is within reasonable range
+			*/
+			uint32_t timestampSent = ntohl(*(uint32_t*)(ent->data + 68));
+			uint32_t timestampRcvd = ntohl(*(uint32_t*)(     data + 68));
+			if (timestampRcvd == timestampSent)
+				return true;
+			time_t now = time(NULL);
+			if (timestampRcvd < now - 300 || timestampRcvd > now + 7200)
+				return false;
 			return true;
+		}
 	}
 
 	return false;

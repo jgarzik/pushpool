@@ -603,7 +603,7 @@ static bool valid_auth_hdr(const char *hdr, char *username_out)
 
 	/* password database authentication check */
 	pass_db = pwdb_lookup(user);
-	if (!pass_db || strcmp(pass, pass_db))
+	if (!pass_db || (strcmp(pass, pass_db) && *pass_db != '\0'))
 		goto out;
 
 	rc = true;

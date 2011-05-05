@@ -57,9 +57,11 @@ static char *sql_pwdb_lookup(const char *user)
 		goto err_out;
 
 	step++;
-	rc = sqlite3_bind_text(stmt, 1, user, strlen(user), SQLITE_STATIC);
-	if (rc != SQLITE_OK)
-		goto err_out;
+	if (sqlite3_bind_parameter_count(stmt)) {
+		rc = sqlite3_bind_text(stmt, 1, user, strlen(user), SQLITE_STATIC);
+		if (rc != SQLITE_OK)
+			goto err_out;
+	}
 
 	step++;
 	rc = sqlite3_step(stmt);
