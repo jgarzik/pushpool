@@ -711,6 +711,7 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth) {
 		reqlog(req->remote_host, username, req->uri);
+		evhttp_add_header(req->output_headers, "WWW-Authenticate", "Basic realm=\"pushpool\"");
 		evhttp_send_reply(req, 401, "not authorized", NULL);
 		return;
 	}
@@ -807,6 +808,7 @@ static void __http_srv_event(struct evhttp_request *req, void *arg,
 	auth = evhttp_find_header(req->input_headers, "Authorization");
 	if (!auth) {
 		reqlog(req->remote_host, username, req->uri);
+		evhttp_add_header(req->output_headers, "WWW-Authenticate", "Basic realm=\"pushpool\"");
 		evhttp_send_reply(req, 401, "not authorized", NULL);
 		return;
 	}
