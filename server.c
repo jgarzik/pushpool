@@ -182,7 +182,7 @@ static json_t *cjson_decode(void *buf, size_t buflen)
 	memcpy(obj_unc + unc_len, &zero, 1);	/* null terminate */
 
 	/* attempt JSON decode of buffer */
-	obj = json_loads(obj_unc, &err);
+	obj = JSON_LOADS(obj_unc, &err);
 
 out:
 	free(obj_unc);
@@ -740,7 +740,7 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 	} else /* long polling */
 		body_str = strdup("{\"method\":\"getwork\",\"params\":[],\"id\":1}");
 
-	jreq = json_loads(body_str, &jerr);
+	jreq = JSON_LOADS(body_str, &jerr);
 
 	free(body_str);
 

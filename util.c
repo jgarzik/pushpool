@@ -271,7 +271,7 @@ json_t *json_rpc_call(CURL *curl, const char *url,
 		goto err_out;
 	}
 
-	val = json_loads(all_data.buf, &err);
+	val = JSON_LOADS(all_data.buf, &err);
 	if (!val) {
 		applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
 		goto err_out;

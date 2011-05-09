@@ -306,7 +306,7 @@ void read_config(void)
 	if (!file_data)
 		exit(1);
 
-	jcfg = json_loads(file_data, &err);
+	jcfg = JSON_LOADS(file_data, &err);
 
 	free(file_data);
 

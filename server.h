@@ -44,6 +44,15 @@
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
 
+#if LIBMEMCACHED_VERSION_HEX < 0x00036000
+typedef memcached_return memcached_return_t;
+#endif
+#if JANSSON_MAJOR_VERSION >= 2
+#define JSON_LOADS(str, err_ptr) json_loads((str), 0, (err_ptr))
+#else
+#define JSON_LOADS(str, err_ptr) json_loads((str), (err_ptr))
+#endif
+
 struct hist;
 
 struct client {
