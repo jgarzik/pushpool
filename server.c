@@ -1325,7 +1325,8 @@ err_out:
 		worker_log_expire(time(NULL) + 1);
 		htab_free(srv.workers);
 
-		memcached_free(srv.mc);
+		if (srv.mc)
+			memcached_free(srv.mc);
 
 		event_base_free(srv.evbase_main);
 	}
