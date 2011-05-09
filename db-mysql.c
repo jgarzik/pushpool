@@ -27,11 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <sqlite3.h>
 #include "server.h"
 
-/* resolve conflicts with elist.h */
-#undef list_add
 #include <mysql.h>
 
 #define DEFAULT_STMT_PWDB \
