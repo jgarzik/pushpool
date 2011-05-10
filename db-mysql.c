@@ -61,11 +61,13 @@ static char *my_pwdb_lookup(const char *user)
 	unsigned long bind_lengths[1], bind_res_lengths[1];
 	char password[256], *pass_ret;
 	int pass_len;
+	const char *step = "init";
 
 	stmt = mysql_stmt_init(db);
 	if (!stmt)
 		return NULL;
 
+	step = "prep";
 	if (mysql_stmt_prepare(stmt, srv.db_stmt_pwdb,
 			       strlen(srv.db_stmt_pwdb)))
 		goto err_out;
@@ -76,6 +78,7 @@ static char *my_pwdb_lookup(const char *user)
 		memset(bind_lengths, 0, sizeof(bind_lengths));
 		bind_instr(bind_param, bind_lengths, 0, user);
 
+		step = "bind-param";
 		if (mysql_stmt_bind_param(stmt, bind_param))
 			goto err_out;
 	}
@@ -87,15 +90,25 @@ static char *my_pwdb_lookup(const char *user)
 	bind_res[0].buffer_length = sizeof(password);
 	bind_res[0].length = &bind_res_lengths[0];
 
-	if (
-	    mysql_stmt_execute(stmt) ||
-	    mysql_stmt_bind_result(stmt, bind_res) ||
-	    mysql_stmt_store_result(stmt) ||
-	    mysql_stmt_fetch(stmt))
+	step = "execute";
+	if (mysql_stmt_execute(stmt))
+		goto err_out;
+
+	step = "bind-result";
+	if (mysql_stmt_bind_result(stmt, bind_res))
+		goto err_out;
+
+	step = "store-result";
+	if (mysql_stmt_store_result(stmt))
+		goto err_out;
+
+	step = "fetch";
+	if (mysql_stmt_fetch(stmt))
 		goto err_out;
 
 	pass_len = bind_res_lengths[0];
 
+	step = "malloc";
 	pass_ret = malloc(pass_len + 1);
 	if (!pass_ret)
 		goto err_out;
@@ -109,7 +122,7 @@ static char *my_pwdb_lookup(const char *user)
 err_out:
 	mysql_stmt_close(stmt);
 
-	applog(LOG_ERR, "mysql pwdb query failed");
+	applog(LOG_ERR, "mysql pwdb query failed at %s", step);
 	return NULL;
 }
 
@@ -122,6 +135,7 @@ static bool my_sharelog(const char *rem_host, const char *username,
 	MYSQL_BIND bind_param[6];
 	unsigned long bind_lengths[6];
 	bool rc = false;
+	const char *step = "init";
 
 	stmt = mysql_stmt_init(db);
 	if (!stmt)
@@ -136,10 +150,17 @@ static bool my_sharelog(const char *rem_host, const char *username,
 	bind_instr(bind_param, bind_lengths, 4, reason);
 	bind_instr(bind_param, bind_lengths, 5, solution);
 
+	step = "prep";
 	if (mysql_stmt_prepare(stmt, srv.db_stmt_sharelog,
-			       strlen(srv.db_stmt_sharelog)) ||
-	    mysql_stmt_bind_param(stmt, bind_param) ||
-	    mysql_stmt_execute(stmt))
+			       strlen(srv.db_stmt_sharelog)))
+		goto err_out;
+
+	step = "bind-param";
+	if (mysql_stmt_bind_param(stmt, bind_param))
+		goto err_out;
+
+	step = "execute";
+	if (mysql_stmt_execute(stmt))
 		goto err_out;
 
 	rc = true;
@@ -149,7 +170,7 @@ out:
 	return rc;
 
 err_out:
-	applog(LOG_ERR, "mysql sharelog failed");
+	applog(LOG_ERR, "mysql sharelog failed at %s", step);
 	goto out;
 }
 
