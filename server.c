@@ -801,9 +801,19 @@ static void flush_lp_waiters(void)
 static void __http_srv_event(struct evhttp_request *req, void *arg,
 			     bool longpoll)
 {
-	/* struct server_socket *sock = arg; */
+	struct server_socket *sock = arg;
 	const char *auth;
 	char username[65] = "";
+
+	/* copy X-Forwarded-For header to remote_host, if a trusted proxy provides it */
+	if (sock->cfg->proxy && !strcmp(req->remote_host, sock->cfg->proxy)) {
+		const char *hdr;
+		hdr = evhttp_find_header(req->input_headers, "X-Forwarded-For");
+		if (hdr) {
+			free(req->remote_host);
+			req->remote_host = strdup(hdr);
+		}
+	}
 
 	/* validate user authorization */
 	auth = evhttp_find_header(req->input_headers, "Authorization");

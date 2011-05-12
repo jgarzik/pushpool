@@ -99,6 +99,7 @@ struct listen_cfg {
 	char			*port_file;
 	enum listen_protocol	proto;
 	struct elist_head	listeners_node;
+	char			*proxy;
 };
 
 struct genlist {

@@ -112,7 +112,7 @@ static void parse_listen(const json_t *listeners)
 
 	for (i = 0; i < len; i++) {
 		json_t *obj;
-		const char *host_str, *proto_str;
+		const char *host_str, *proto_str, *proxy_str;
 		int port;
 		struct listen_cfg *lc;
 
@@ -127,6 +127,10 @@ static void parse_listen(const json_t *listeners)
 			applog(LOG_WARNING, "invalid listen config: port");
 			continue;
 		}
+
+		proxy_str = json_string_value(json_object_get(obj, "proxy"));
+		if (proxy_str && !*proxy_str)
+			proxy_str = NULL;
 
 		lc = calloc(1, sizeof(*lc));
 		if (!lc) {
@@ -148,6 +152,8 @@ static void parse_listen(const json_t *listeners)
 		if (host_str)
 			lc->host = strdup(host_str);
 		lc->port = port;
+		if (proxy_str)
+			lc->proxy = strdup(proxy_str);
 
 		elist_add_tail(&lc->listeners_node, &srv.listeners);
 	}
