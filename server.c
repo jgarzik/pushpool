@@ -771,6 +771,7 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 			  "Content-Type", "application/json");
 	if (!longpoll && !srv.disable_lp)
 		evhttp_add_header(req->output_headers, "X-Long-Polling", "/LP");
+	evhttp_add_header(req->output_headers, "X-Roll-NTime", "Y");
 	evhttp_send_reply(req, HTTP_OK, "ok", evbuf);
 
 	evbuffer_free(evbuf);
