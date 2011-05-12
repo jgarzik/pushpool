@@ -1,8 +1,19 @@
 {
 	# network ports
 	"listen" : [
+		# binary protocol (default), port 8336
 		{ "port" : 8336 },
+
+		# HTTP JSON-RPC protocol, port 8337
 		{ "port" : 8337, "protocol" : "http-json" },
+
+		# HTTP JSON-RPC protocol, port 8339,
+		# with trusted proxy appserver.example.com forwarding
+		# requests to us
+		{ "port" : 8337, "protocol" : "http-json",
+		  "proxy" : "appserver.example.com" },
+
+		# binary protocol, localhost-only port 8338
 		{ "host" : "127.0.0.1", "port" : 8338, "protocol" : "binary" }
 	],
 
