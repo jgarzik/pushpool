@@ -530,6 +530,12 @@ static void tcp_srv_event(int fd, short events, void *userdata)
 		applog(LOG_WARNING, "TCP_NODELAY failed: %s",
 		       strerror(errno));
 
+	/* turn on TCP keep-alive */
+	on = 1;
+	if (setsockopt(cli->fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) < 0)
+		applog(LOG_WARNING, "SO_KEEPALIVE failed: %s",
+		       strerror(errno));
+
 	event_set(&cli->ev, cli->fd, EV_READ | EV_PERSIST,
 		  tcp_cli_event, cli);
 
