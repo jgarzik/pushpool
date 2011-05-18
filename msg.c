@@ -143,14 +143,14 @@ static void worker_log(const char *username, const unsigned char *data)
 	worker_log_expire(now - WORK_EXPIRE_INT);
 }
 
-static bool work_in_log(const char *username, const unsigned char *data)
+static const char *work_in_log(const char *username, const unsigned char *data)
 {
 	struct worker *worker;
 	struct work_ent *ent;
 
 	worker = htab_get(srv.workers, username);
 	if (!worker)
-		return false;
+		return "unknown-user";
 
 	elist_for_each_entry(ent, &worker->log, log_node) {
 		/* check submitted block matches sent block,
@@ -163,15 +163,17 @@ static bool work_in_log(const char *username, const unsigned char *data)
 			uint32_t timestampSent = ntohl(*(uint32_t*)(ent->data + 68));
 			uint32_t timestampRcvd = ntohl(*(uint32_t*)(     data + 68));
 			if (timestampRcvd == timestampSent)
-				return true;
+				return NULL;
 			time_t now = time(NULL);
-			if (timestampRcvd < now - 300 || timestampRcvd > now + 7200)
-				return false;
-			return true;
+			if (timestampRcvd < now - 300)
+				return "time-too-old";
+			if (timestampRcvd > now + 7200)
+				return "time-too-new";
+			return NULL;
 		}
 	}
 
-	return false;
+	return "unknown-work";
 }
 
 static bool stale_work(const unsigned char *data)
@@ -284,10 +286,9 @@ static int check_hash(const char *remote_host, const char *auth_user,
 		*reason_out = "stale";
 		return 0;		/* work is invalid */
 	}
-	if (!work_in_log(auth_user, data)) {
-		*reason_out = "work-not-in-log";
+	*reason_out = work_in_log(auth_user, data);
+	if (*reason_out)
 		return 0;		/* work is invalid */
-	}
 
 	for (i = 0; i < 128/4; i++)
 		data32[i] = bswap_32(data32[i]);
