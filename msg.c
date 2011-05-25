@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2011 Jeff Garzik
  *
@@ -74,7 +73,7 @@ char *pwdb_lookup(const char *user)
 		snprintf(cred_key, sizeof(cred_key),
 			 "/pushpoold/cred_cache/%s", user);
 
-		pass = memcached_get(srv.mc, cred_key, strlen(cred_key) + 1,
+		pass = memcached_get(srv.mc, cred_key, strlen(cred_key),
 				     &out_len, &out_flags, &rc);
 		if (rc == MEMCACHED_SUCCESS)
 			return pass;		/* may be NULL, for negative caching */
@@ -83,7 +82,7 @@ char *pwdb_lookup(const char *user)
 	pass = srv.db_ops->pwdb_lookup(user);
 
 	if (srv.mc) {
-		rc = memcached_set(srv.mc, cred_key, strlen(cred_key) + 1,
+		rc = memcached_set(srv.mc, cred_key, strlen(cred_key) ,
 				   pass,
 				   pass ? strlen(pass) + 1 : 0,
 				   srv.cred_expire, 0);
