@@ -42,16 +42,18 @@ void applog(int prio, const char *fmt, ...)
 		vsyslog(prio, fmt, ap);
 	} else {
 		char *f;
-		int len;
 		struct timeval tv = { };
+		struct tm tm;
 
 		gettimeofday(&tv, NULL);
+		gmtime_r(&tv.tv_sec, &tm);
 
-		len = 40 + strlen(fmt) + 2;
-		f = alloca(len);
-		sprintf(f, "[%.6f] %s\n",
-			tv.tv_sec +
-			tv.tv_usec/1000000.0, fmt);
+		asprintf(&f, "[%d-%02d-%02d %02d:%02d:%02.6f] %s\n",
+			 tm.tm_year + 1900,
+			 tm.tm_mon + 1,
+			 tm.tm_mday,
+			 tm.tm_hour,
+			 tm.tm_min, tm.tm_sec + tv.tv_usec / 1000000.0, fmt);
 		vfprintf(stderr, f, ap);	/* atomic write to stderr */
 	}
 	va_end(ap);
