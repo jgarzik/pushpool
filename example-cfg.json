@@ -85,5 +85,8 @@
 	"rpc.pass" : "mypassword",
 
 	# rewrite returned 'target' to difficulty-1?
-	"rpc.target.rewrite" : true
+	"rpc.target.rewrite" : true,
+
+	# allow clients to update the ntime field of their work
+	"roll.ntime.disable" : false
 }

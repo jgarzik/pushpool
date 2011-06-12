@@ -169,6 +169,7 @@ struct server {
 
 	struct elist_head	lp_waiters;
 	bool			disable_lp;
+	bool			disable_roll_ntime;
 
 	memcached_st		*mc;
 

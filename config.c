@@ -400,6 +400,9 @@ void read_config(void)
 		}
 	}
 
+	if (json_is_true(json_object_get(jcfg, "roll.ntime.disable")))
+		srv.disable_roll_ntime = true;
+
 	json_decref(jcfg);
 }
 
