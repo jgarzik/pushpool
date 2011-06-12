@@ -163,6 +163,8 @@ static const char *work_in_log(const char *username, const unsigned char *data)
 			uint32_t timestampRcvd = ntohl(*(uint32_t*)(     data + 68));
 			if (timestampRcvd == timestampSent)
 				return NULL;
+			if (srv.disable_roll_ntime)
+				return "time-invalid";
 			time_t now = time(NULL);
 			if (timestampRcvd < now - 300)
 				return "time-too-old";
