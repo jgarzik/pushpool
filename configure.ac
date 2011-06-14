@@ -1,5 +1,5 @@
 
-AC_INIT([pushpool], [0.4.1])
+AC_INIT([pushpool], [0.5])
 
 AC_PREREQ(2.52)
 AC_CONFIG_SRCDIR([server.c])
