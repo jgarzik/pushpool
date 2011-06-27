@@ -1,5 +1,5 @@
 
-AC_INIT([pushpool], [0.5])
+AC_INIT([pushpool], [0.5.1])
 
 AC_PREREQ(2.52)
 AC_CONFIG_SRCDIR([server.c])
@@ -8,6 +8,8 @@ AC_CONFIG_HEADERS([autotools-config.h])
 
 dnl Make sure anyone changing configure.ac/Makefile.am has a clue
 AM_MAINTAINER_MODE
+
+AC_CANONICAL_HOST
 
 dnl Checks for programs
 AC_PROG_CC
