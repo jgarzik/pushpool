@@ -38,7 +38,15 @@
 #include <zlib.h>
 #include <netdb.h>
 #include <stdarg.h>
+
+#if defined(__APPLE__)
+#include <machine/endian.h>
+#define htole32 OSSwapHostToLittleInt32
+#define le32toh OSSwapLittleToHostInt32
+#else
 #include <endian.h>
+#endif
+
 #include <openssl/sha.h>
 #include <argp.h>
 #include "server.h"
