@@ -26,7 +26,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <syslog.h>
-#include <alloca.h>
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
