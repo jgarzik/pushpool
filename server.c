@@ -40,6 +40,7 @@
 #include <stdarg.h>
 
 #if defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
 #include <machine/endian.h>
 #define htole32 OSSwapHostToLittleInt32
 #define le32toh OSSwapLittleToHostInt32
