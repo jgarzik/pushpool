@@ -37,6 +37,17 @@
 
 #define PROGRAM_NAME "pushpoold"
 
+#if defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+#include <machine/endian.h>
+#define le32toh OSSwapLittleToHostInt32
+#define htole32 OSSwapHostToLittleInt32
+#define bswap_32 OSSwapInt32
+#else
+#include <byteswap.h>
+#include <endian.h>
+#endif
+
 #ifndef MIN
 #define	MIN(a,b) (((a)<(b))?(a):(b))
 #endif

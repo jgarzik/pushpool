@@ -27,16 +27,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <jansson.h>
-
-#if defined(__APPLE__)
-#include <libkern/OSByteOrder.h>
-#define le32toh OSSwapLittleToHostInt32
-#define htole32 OSSwapHostToLittleInt32
-#define bswap_32 OSSwapInt32
-#else
-#include <byteswap.h>
-#endif
-
 #include <openssl/sha.h>
 #include <syslog.h>
 #include "server.h"
