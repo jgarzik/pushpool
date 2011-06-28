@@ -12,5 +12,5 @@ pushpoold_SOURCES = anet.h elist.h htab.h protocol.h server.h ubbp.h	\
 		    db-sqlite.c db-mysql.c db-postgresql.c
 pushpoold_LDFLAGS = $(PTHREAD_FLAGS)
 pushpoold_LDADD	= @LIBCURL@ @EVENT_LIBS@ @PTHREAD_LIBS@ @JANSSON_LIBS@ \
-		  @CRYPTO_LIBS@ @Z_LIBS@ @LIBMEMCACHED_LIBS@ \
+		  @CRYPTO_LIBS@ @Z_LIBS@ @LIBMEMCACHED_LIBS@ @ARGP_LIBS@ \
 		  @SQLITE3_LDFLAGS@ @MYSQL_LDFLAGS@ @POSTGRESQL_LDFLAGS@
