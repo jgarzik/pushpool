@@ -43,6 +43,9 @@
 #define le32toh OSSwapLittleToHostInt32
 #define htole32 OSSwapHostToLittleInt32
 #define bswap_32 OSSwapInt32
+#elif defined(HAVE_SYS_ENDIAN_H)
+#include <sys/endian.h>
+#define bswap_32 bswap32
 #else
 #include <byteswap.h>
 #include <endian.h>
