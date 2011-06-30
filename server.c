@@ -172,6 +172,7 @@ static json_t *cjson_decode(void *buf, size_t buflen)
 	obj_unc = malloc(unc_len + 1);
 	if (!obj_unc)
 		return NULL;
+	dest_len = unc_len;
 
 	/* decompress buffer (excluding first 32 bits) */
 	comp_p = buf + 4;
