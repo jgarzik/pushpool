@@ -212,10 +212,10 @@ bool cjson_encode(unsigned char op, const char *obj_unc,
 	if (!raw_msg)
 		goto err_out;
 
-	/* get ptr to compressed-length value, which follows header */
+	/* get ptr to uncompressed-length value, which follows header */
 	obj_clen = raw_msg + sizeof(struct ubbp_header);
 
-	/* get ptr to compressed data area, which follows hdr & compr. len */
+	/* get ptr to compressed data area, which follows hdr & uncompr. len */
 	obj_comp = raw_msg + sizeof(struct ubbp_header) + sizeof(uint32_t);
 
 	/* compress data */
@@ -231,8 +231,8 @@ bool cjson_encode(unsigned char op, const char *obj_unc,
 	payload_len = sizeof(uint32_t) + comp_len;
 	msg_hdr->op_size = htole32(UBBP_OP_SIZE(op, payload_len));
 
-	/* fill in compressed length */
-	*obj_clen = htole32(comp_len);
+	/* fill in uncompressed length */
+	*obj_clen = htole32(unc_len);
 
 	/* return entire message */
 	*buf_out = raw_msg;
