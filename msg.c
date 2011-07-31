@@ -316,21 +316,20 @@ static int check_hash(const char *remote_host, const char *auth_user,
 }
 
 static bool submit_work(const char *remote_host, const char *auth_user,
-			CURL *curl, const char *hexstr, bool *json_result)
+			CURL *curl, const char *hexstr, const char **reason)
 {
 	json_t *val;
 	char s[256 + 80];
 	bool rc = false;
 	int check_rc;
-	const char *reason = NULL;
+	*reason = NULL;
 
 	/* validate submitted work */
-	check_rc = check_hash(remote_host, auth_user, hexstr, &reason);
+	check_rc = check_hash(remote_host, auth_user, hexstr, reason);
 	if (check_rc < 0)	/* internal failure */
 		goto out;
 	if (check_rc == 0) {	/* invalid hash */
-		*json_result = false;
-		sharelog(remote_host, auth_user, "N", NULL, reason, hexstr);
+		sharelog(remote_host, auth_user, "N", NULL, *reason, hexstr);
 		return true;
 	}
 
@@ -338,7 +337,7 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 	 * don't bother submitting to bitcoind
 	 */
 	if (srv.easy_target && check_rc == 1) {
-		*json_result = true;
+		*reason = NULL;
 		sharelog(remote_host, auth_user, "Y", NULL, NULL, hexstr);
 		return true;
 	}
@@ -355,34 +354,34 @@ static bool submit_work(const char *remote_host, const char *auth_user,
 		goto out;
 	}
 
-	*json_result = json_is_true(json_object_get(val, "result"));
+	*reason = json_is_true(json_object_get(val, "result")) ? NULL : "unknown";
 	rc = true;
 
 	sharelog(remote_host, auth_user,
-		 srv.easy_target ? "Y" : *json_result ? "Y" : "N",
-		 *json_result ? "Y" : "N", NULL, hexstr);
+		 srv.easy_target ? "Y" : *reason ? "N" : "Y",
+		 *reason ? "N" : "Y", NULL, hexstr);
 
 	if (debugging > 1)
 		applog(LOG_INFO, "[%s] PROOF-OF-WORK submitted upstream.  "
 		       "Result: %s",
 		       remote_host,
-		       *json_result ? "TRUE" : "false");
+		       *reason ? "false" : "TRUE");
 
 	json_decref(val);
 
-	if (*json_result)
+	if (!*reason)
 		applog(LOG_INFO, "PROOF-OF-WORK found");
 
 	/* if pool server mode, return success even if result==false */
 	if (srv.easy_target)
-		*json_result = true;
+		*reason = NULL;
 
 out:
 	return rc;
 }
 
 static bool submit_bin_work(const char *remote_host, const char *auth_user,
-			    CURL *curl, void *data, bool *json_result)
+			    CURL *curl, void *data, const char **reason)
 {
 	char *hexstr = NULL;
 	bool rc = false;
@@ -394,7 +393,7 @@ static bool submit_bin_work(const char *remote_host, const char *auth_user,
 		goto out;
 	}
 
-	rc = submit_work(remote_host, auth_user, curl, hexstr, json_result);
+	rc = submit_work(remote_host, auth_user, curl, hexstr, reason);
 
 	free(hexstr);
 
@@ -577,16 +576,16 @@ err_out:
 bool cli_op_work_submit(struct client *cli, unsigned int msgsz)
 {
 	int err_code = BC_ERR_INVALID;
-	bool json_res = false;
+	const char *reason;
 
 	if (msgsz != 128)
 		goto err_out;
 	if (!submit_bin_work(cli->addr_host, cli->auth_user,
-			     srv.curl, cli->msg, &json_res)) {
+			     srv.curl, cli->msg, &reason)) {
 		err_code = BC_ERR_RPC;
 		goto err_out;
 	}
-	if (!json_res) {
+	if (reason) {
 		err_code = BC_ERR_WORK_REJECT;
 		goto err_out;
 	}
@@ -670,9 +669,9 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 	/* submit solution */
 	else {
 		json_t *soln;
-		const char *soln_str;
+		const char *soln_str, *reason;
 		size_t soln_len;
-		bool rpc_rc = false, json_result = false;
+		bool rpc_rc = false;
 
 		soln = json_array_get(params, 0);
 		soln_str = json_string_value(soln);
@@ -685,11 +684,13 @@ bool msg_json_rpc(struct evhttp_request *req, json_t *jreq,
 		}
 
 		rpc_rc = submit_work(req->remote_host, username, srv.curl,
-				     soln_str, &json_result);
+				     soln_str, &reason);
 
 		if (rpc_rc) {
 			json_object_set_new(resp, "result",
-				json_result ? json_true() : json_false());
+				reason ? json_false() : json_true());
+			if (reason)
+				evhttp_add_header(req->output_headers, "X-Reject-Reason", reason);
 			json_object_set_new(resp, "error", json_null());
 		} else {
 			json_object_set_new(resp, "result", json_null());
