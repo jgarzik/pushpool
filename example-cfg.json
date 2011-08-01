@@ -87,6 +87,9 @@
 	# rewrite returned 'target' to difficulty-1?
 	"rpc.target.rewrite" : true,
 
+	# how long before work expires?
+	"work.expire" : 120,
+
 	# allow clients to update the ntime field of their work
 	"roll.ntime.disable" : false
 }

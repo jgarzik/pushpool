@@ -303,7 +303,7 @@ static void parse_database(const json_t *db_obj)
 
 void read_config(void)
 {
-	json_t *jcfg, *cred_expire;
+	json_t *jcfg, *cred_expire, *tmp_json;
 	json_error_t err;
 	const char *tmp_str, *rpcuser, *rpcpass;
 	char *file_data;
@@ -393,6 +393,10 @@ void read_config(void)
 	if (json_is_true(json_object_get(jcfg, "rpc.target.rewrite")))
 		srv.easy_target = json_string(EASY_TARGET);
 
+	tmp_json = json_object_get(jcfg, "work.expire");
+	if (json_is_integer(tmp_json))
+		srv.work_expire = json_integer_value(tmp_json);
+
 	if (!srv.pid_file) {
 		if (!(srv.pid_file = strdup("/var/run/pushpoold.pid"))) {
 			applog(LOG_ERR, "no core");
@@ -402,6 +406,11 @@ void read_config(void)
 
 	if (json_is_true(json_object_get(jcfg, "roll.ntime.disable")))
 		srv.disable_roll_ntime = true;
+	else
+	if (asprintf(&srv.work_expire_str, "expire=%d", srv.work_expire) < 0) {
+		applog(LOG_ERR, "OOM");
+		exit(1);
+	}
 
 	json_decref(jcfg);
 }

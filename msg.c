@@ -46,10 +46,6 @@ struct work_ent {
 	struct elist_head	srv_log_node;
 };
 
-enum {
-	WORK_EXPIRE_INT		= 120,		/* expire older than X secs */
-};
-
 static const char *bc_err_str[] = {
 	[BC_ERR_NONE] = "no error (success)",
 	[BC_ERR_INVALID] = "invalid parameter",
@@ -138,7 +134,7 @@ static void worker_log(const char *username, const unsigned char *data)
 	elist_add_tail(&ent->log_node, &worker->log);
 	elist_add_tail(&ent->srv_log_node, &srv.work_log);
 
-	worker_log_expire(now - WORK_EXPIRE_INT);
+	worker_log_expire(now - srv.work_expire);
 }
 
 static const char *work_in_log(const char *username, const unsigned char *data)
