@@ -174,6 +174,7 @@ struct server {
 	void			*db_cxn;
 
 	struct hist		*hist;
+	unsigned char		last_prevhash[32];
 	unsigned char		cur_prevhash[32];
 
 	struct htab		*workers;

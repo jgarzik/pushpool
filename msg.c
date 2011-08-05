@@ -176,10 +176,13 @@ static const char *work_in_log(const char *username, const unsigned char *data)
 	return "unknown-work";
 }
 
-static bool stale_work(const unsigned char *data)
+static const char *stale_work(const unsigned char *data)
 {
-	int cmp = memcmp(data + 4, srv.cur_prevhash, sizeof(srv.cur_prevhash));
-	return (cmp == 0) ? false : true;
+	if (!memcmp(data + 4, srv.cur_prevhash, sizeof(srv.cur_prevhash)))
+		return NULL;
+	if (!memcmp(data + 4, srv.last_prevhash, sizeof(srv.last_prevhash)))
+		return "prevhash-stale";
+	return "prevhash-wrong";
 }
 
 static bool jobj_binary(const json_t *obj, const char *key,
@@ -253,8 +256,12 @@ static json_t *get_work(const char *auth_user)
 		return NULL;
 	}
 
-	/* store most recently seen prevhash */
-	memcpy(srv.cur_prevhash, data + 4, sizeof(srv.cur_prevhash));
+	if (memcmp(data + 4, srv.cur_prevhash, sizeof(srv.cur_prevhash)))
+	{
+		/* store two most recently seen prevhash (last, and current) */
+		memcpy(srv.last_prevhash, srv.cur_prevhash, sizeof(srv.last_prevhash));
+		memcpy(srv.cur_prevhash, data + 4, sizeof(srv.cur_prevhash));
+	}
 
 	/* log work unit as having been sent to associated worker */
 	worker_log(auth_user, data);
@@ -282,10 +289,9 @@ static int check_hash(const char *remote_host, const char *auth_user,
 		return -1;		/* error; failure */
 	}
 
-	if (stale_work(data)) {
-		*reason_out = "stale";
+	*reason_out = stale_work(data);
+	if (*reason_out)
 		return 0;		/* work is invalid */
-	}
 	*reason_out = work_in_log(auth_user, data);
 	if (*reason_out)
 		return 0;		/* work is invalid */
