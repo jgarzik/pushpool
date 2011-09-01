@@ -108,6 +108,7 @@ struct server srv = {
 	.db_port	= -1,
 
 	.cred_expire	= 75,
+	.work_expire	= 120,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -779,7 +780,7 @@ static void http_handle_req(struct evhttp_request *req, bool longpoll)
 	if (!longpoll && !srv.disable_lp)
 		evhttp_add_header(req->output_headers, "X-Long-Polling", "/LP");
 	if (!srv.disable_roll_ntime)
-		evhttp_add_header(req->output_headers, "X-Roll-NTime", "Y");
+		evhttp_add_header(req->output_headers, "X-Roll-NTime", srv.work_expire_str);
 	evhttp_send_reply(req, HTTP_OK, "ok", evbuf);
 
 	evbuffer_free(evbuf);

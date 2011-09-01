@@ -179,6 +179,8 @@ struct server {
 
 	struct htab		*workers;
 	struct elist_head	work_log;
+	unsigned int		work_expire;
+	char			*work_expire_str;
 
 	unsigned int		cred_expire;
 
