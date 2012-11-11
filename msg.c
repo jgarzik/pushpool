@@ -269,6 +269,53 @@ static json_t *get_work(const char *auth_user)
 	return val;
 }
 
+void fake_get_work(void)
+{
+    char s[80];
+    unsigned char data[128];
+    unsigned char target[32];
+    const char *data_str, *target_str;
+    json_t *val, *result;
+
+    sprintf(s, "{\"method\": \"getwork\", \"params\": [], \"id\":%u}\r\n",rpcid++);
+
+/* issue JSON-RPC request */
+    val = json_rpc_call(srv.curl, srv.rpc_url, srv.rpc_userpass, s);
+    if (!val)
+        return;
+
+/* decode data field, implicitly verifying 'result' is an object */
+    result = json_object_get(val, "result");
+    data_str = json_string_value(json_object_get(result, "data"));
+    if (!data_str ||
+        !hex2bin(data, data_str, sizeof(data))) {
+        json_decref(val);
+        return;
+    }
+
+    if (memcmp(data + 4, srv.cur_prevhash, sizeof(srv.cur_prevhash)))
+    {
+/* store two most recently seen prevhash (last, and current) */
+    memcpy(srv.last_prevhash, srv.cur_prevhash, sizeof(srv.last_prevhash));
+    memcpy(srv.cur_prevhash, data + 4, sizeof(srv.cur_prevhash));
+
+    target_str = json_string_value(json_object_get(result, "target"));
+    if (!target_str ||
+        !hex2bin(target, target_str, sizeof(target))) {
+        json_decref(val);
+        return;
+        }
+    memcpy(srv.cur_target, target, sizeof(srv.cur_target));
+    if (debugging > 0)
+        applog(LOG_INFO, "new block, target %s", target_str);
+    srv.initiate_lp_flush = true;
+}
+json_decref(val);
+return;
+}
+
+
+
 static int check_hash(const char *remote_host, const char *auth_user,
 		      const char *data_str, const char **reason_out)
 {

@@ -176,9 +176,11 @@ struct server {
 	struct hist		*hist;
 	unsigned char		last_prevhash[32];
 	unsigned char		cur_prevhash[32];
+    unsigned char   cur_target[32];
 
 	struct htab		*workers;
 	struct elist_head	work_log;
+    bool    initiate_lp_flush;
 	unsigned int		work_expire;
 	char			*work_expire_str;
 

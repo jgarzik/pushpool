@@ -1,28 +1,26 @@
 #!/usr/bin/python
-
 #
-# blkmond - monitor bitcoin P2P network for new blocks
+# node.py - Bitcoin P2P network half-a-node
+#
+# Distributed under the MIT/X11 software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
-import struct
-import socket
-import asyncore
-import binascii
-import time
-import sys
-import os
-import re
-import signal
-import random
-import cStringIO
-from Crypto.Hash import SHA256
+import struct, socket, asyncore, binascii, time
+import sys, re, random, cStringIO, hashlib
 
 MY_VERSION = 312
 MY_SUBVERSION = ".4"
 
-settings = {}
+# Default Settings if no configuration file is given
+settings = {
+	"host": "173.242.112.53",
+	"port": 8333,
+	"debug": False
+	"pid": '/var/lib/xf2/pool/pushpoold.pid'
+}
 
-def new_block_event():
+def new_block_event(block):
 	try:
 		f = open(settings['pid'])
 		line = f.readline()
@@ -38,12 +36,24 @@ def new_block_event():
 
 	pid = int(m.group(1))
 
-	print "New block noticed, sending SIGUSR1 signal to PID", pid
+	print "New block noticed, sending SIGUSR1 signal to PID: ",pid
 
 	try:
 		os.kill(pid, signal.SIGUSR1)
 	except (OSError, IOError), e:
 		print "sending SIGUSR1 failed:", str(e)
+
+def new_transaction_event(tx):
+	if tx.is_valid():
+		print " - Valid TX: %s" % tx.hash
+	else:
+		print " - Invalid TX: %s" % tx.hash
+
+def sha256(s):
+	return hashlib.new('sha256', s).digest()
+
+def hash256(s):
+	return sha256(sha256(s))
 
 def deser_string(f):
 	nit = struct.unpack("<B", f.read(1))[0]
@@ -146,6 +156,66 @@ def ser_uint256_vector(l):
 	for i in l:
 		r += ser_uint256(i)
 	return r
+
+def deser_string_vector(f):
+	nit = struct.unpack("<B", f.read(1))[0]
+	if nit == 253:
+		nit = struct.unpack("<H", f.read(2))[0]
+	elif nit == 254:
+		nit = struct.unpack("<I", f.read(4))[0]
+	elif nit == 255:
+		nit = struct.unpack("<Q", f.read(8))[0]
+	r = []
+	for i in xrange(nit):
+		t = deser_string(f)
+		r.append(t)
+	return r
+
+def ser_string_vector(l):
+	r = ""
+	if len(l) < 253:
+		r = chr(len(l))
+	elif len(s) < 0x10000:
+		r = chr(253) + struct.pack("<H", len(l))
+	elif len(s) < 0x100000000L:
+		r = chr(254) + struct.pack("<I", len(l))
+	else:
+		r = chr(255) + struct.pack("<Q", len(l))
+	for sv in l:
+		r += ser_string(sv)
+	return r
+
+def deser_int_vector(f):
+	nit = struct.unpack("<B", f.read(1))[0]
+	if nit == 253:
+		nit = struct.unpack("<H", f.read(2))[0]
+	elif nit == 254:
+		nit = struct.unpack("<I", f.read(4))[0]
+	elif nit == 255:
+		nit = struct.unpack("<Q", f.read(8))[0]
+	r = []
+	for i in xrange(nit):
+		t = struct.unpack("<i", f.read(4))[0]
+		r.append(t)
+	return r
+
+def ser_int_vector(l):
+	r = ""
+	if len(l) < 253:
+		r = chr(len(l))
+	elif len(s) < 0x10000:
+		r = chr(253) + struct.pack("<H", len(l))
+	elif len(s) < 0x100000000L:
+		r = chr(254) + struct.pack("<I", len(l))
+	else:
+		r = chr(255) + struct.pack("<Q", len(l))
+	for i in l:
+		r += struct.pack("<i", i)
+	return r
+
+def show_debug_msg(msg):
+	if settings['debug']:
+		print "DEBUG: " + msg
 
 class CAddress(object):
 	def __init__(self):
@@ -258,6 +328,7 @@ class CTransaction(object):
 		self.vout = []
 		self.nLockTime = 0
 		self.sha256 = None
+		self.hash = None
 	def deserialize(self, f):
 		self.nVersion = struct.unpack("<i", f.read(4))[0]
 		self.vin = deser_vector(f, CTxIn)
@@ -272,7 +343,8 @@ class CTransaction(object):
 		return r
 	def calc_sha256(self):
 		if self.sha256 is None:
-			self.sha256 = uint256_from_str(SHA256.new(SHA256.new(self.serialize()).digest()).digest())
+			self.sha256 = uint256_from_str(hash256(self.serialize()))
+		self.hash = hash256(self.serialize())[::-1].encode('hex_codec')
 	def is_valid(self):
 		self.calc_sha256()
 		for tout in self.vout:
@@ -292,6 +364,7 @@ class CBlock(object):
 		self.nNonce = 0
 		self.vtx = []
 		self.sha256 = None
+		self.hash = None
 	def deserialize(self, f):
 		self.nVersion = struct.unpack("<i", f.read(4))[0]
 		self.hashPrevBlock = deser_uint256(f)
@@ -319,7 +392,8 @@ class CBlock(object):
 			r += struct.pack("<I", self.nTime)
 			r += struct.pack("<I", self.nBits)
 			r += struct.pack("<I", self.nNonce)
-			self.sha256 = uint256_from_str(SHA256.new(SHA256.new(r).digest()).digest())
+			self.sha256 = uint256_from_str(hash256(r))
+			self.hash = hash256(r)[::-1].encode('hex_codec')
 	def is_valid(self):
 		self.calc_sha256()
 		target = uint256_from_compact(self.nBits)
@@ -335,13 +409,76 @@ class CBlock(object):
 			newhashes = []
 			for i in xrange(0, len(hashes), 2):
 				i2 = min(i+1, len(hashes)-1)
-				newhashes.append(SHA256.new(SHA256.new(hashes[i] + hashes[i2]).digest()).digest())
+				newhashes.append(hash256(hashes[i] + hashes[i2]))
 			hashes = newhashes
 		if uint256_from_str(hashes[0]) != self.hashMerkleRoot:
 			return False
 		return True
 	def __repr__(self):
 		return "CBlock(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x nTime=%s nBits=%08x nNonce=%08x vtx=%s)" % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot, time.ctime(self.nTime), self.nBits, self.nNonce, repr(self.vtx))
+
+class CUnsignedAlert(object):
+	def __init__(self):
+		self.nVersion = 1
+		self.nRelayUntil = 0
+		self.nExpiration = 0
+		self.nID = 0
+		self.nCancel = 0
+		self.setCancel = []
+		self.nMinVer = 0
+		self.nMaxVer = 0
+		self.setSubVer = []
+		self.nPriority = 0
+		self.strComment = ""
+		self.strStatusBar = ""
+		self.strReserved = ""
+	def deserialize(self, f):
+		self.nVersion = struct.unpack("<i", f.read(4))[0]
+		self.nRelayUntil = struct.unpack("<q", f.read(8))[0]
+		self.nExpiration = struct.unpack("<q", f.read(8))[0]
+		self.nID = struct.unpack("<i", f.read(4))[0]
+		self.nCancel = struct.unpack("<i", f.read(4))[0]
+		self.setCancel = deser_int_vector(f)
+		self.nMinVer = struct.unpack("<i", f.read(4))[0]
+		self.nMaxVer = struct.unpack("<i", f.read(4))[0]
+		self.setSubVer = deser_string_vector(f)
+		self.nPriority = struct.unpack("<i", f.read(4))[0]
+		self.strComment = deser_string(f)
+		self.strStatusBar = deser_string(f)
+		self.strReserved = deser_string(f)
+	def serialize(self):
+		r = ""
+		r += struct.pack("<i", self.nVersion)
+		r += struct.pack("<q", self.nRelayUntil)
+		r += struct.pack("<q", self.nExpiration)
+		r += struct.pack("<i", self.nID)
+		r += struct.pack("<i", self.nCancel)
+		r += ser_int_vector(self.setCancel)
+		r += struct.pack("<i", self.nMinVer)
+		r += struct.pack("<i", self.nMaxVer)
+		r += ser_string_vector(self.setSubVer)
+		r += struct.pack("<i", self.nPriority)
+		r += ser_string(self.strComment)
+		r += ser_string(self.strStatusBar)
+		r += ser_string(self.strReserved)
+		return r
+	def __repr__(self):
+		return "CUnsignedAlert(nVersion %d, nRelayUntil %d, nExpiration %d, nID %d, nCancel %d, nMinVer %d, nMaxVer %d, nPriority %d, strComment %s, strStatusBar %s, strReserved %s)" % (self.nVersion, self.nRelayUntil, self.nExpiration, self.nID, self.nCancel, self.nMinVer, self.nMaxVer, self.nPriority, self.strComment, self.strStatusBar, self.strReserved)
+
+class CAlert(object):
+	def __init__(self):
+		self.vchMsg = ""
+		self.vchSig = ""
+	def deserialize(self, f):
+		self.vchMsg = deser_string(f)
+		self.vchSig = deser_string(f)
+	def serialize(self):
+		r = ""
+		r += ser_string(self.vchMsg)
+		r += ser_string(self.vchSig)
+		return r
+	def __repr__(self):
+		return "CAlert(vchMsg.sz %d, vchSig.sz %d)" % (len(self.vchMsg), len(self.vchSig))
 
 class msg_version(object):
 	command = "version"
@@ -411,6 +548,20 @@ class msg_addr(object):
 		return ser_vector(self.addrs)
 	def __repr__(self):
 		return "msg_addr(addrs=%s)" % (repr(self.addrs))
+
+class msg_alert(object):
+	command = "alert"
+	def __init__(self):
+		self.alert = CAlert()
+	def deserialize(self, f):
+		self.alert = CAlert()
+		self.alert.deserialize(f)
+	def serialize(self):
+		r = ""
+		r += self.alert.serialize()
+		return r
+	def __repr__(self):
+		return "msg_alert(alert=%s)" % (repr(self.alert), )
 
 class msg_inv(object):
 	command = "inv"
@@ -499,15 +650,12 @@ class msg_ping(object):
 	def __repr__(self):
 		return "msg_ping()"
 
-
-
-
-
 class NodeConn(asyncore.dispatcher):
 	messagemap = {
 		"version": msg_version,
 		"verack": msg_verack,
 		"addr": msg_addr,
+		"alert": msg_alert,
 		"inv": msg_inv,
 		"getdata": msg_getdata,
 		"getblocks": msg_getblocks,
@@ -523,8 +671,8 @@ class NodeConn(asyncore.dispatcher):
 		self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.sendbuf = ""
 		self.recvbuf = ""
-		self.ver_send = 0
-		self.ver_recv = 0
+		self.ver_send = 209
+		self.ver_recv = 209
 		self.last_sent = 0
 		self.state = "connecting"
 
@@ -535,14 +683,15 @@ class NodeConn(asyncore.dispatcher):
 		vt.addrFrom.ip = "0.0.0.0"
 		vt.addrFrom.port = 0
 		self.send_message(vt, True)
-
-		print "connecting"
+		print "\n PyNode - MiniNode"
+		print " -------------------------------------------------------------------------"
+		print " Connecting to Bitcoin Node IP # " + settings['host'] + ":" + str(settings['port'])
 		try:
 			self.connect((dstaddr, dstport))
 		except:
 			self.handle_close()
 	def handle_connect(self):
-		print "connected"
+		print " Connected & Listening :)\n"
 		self.state = "connected"
 		#send version msg
 #		t = msg_version()
@@ -552,7 +701,7 @@ class NodeConn(asyncore.dispatcher):
 #		t.addrFrom.port = 0
 #		self.send_message(t)
 	def handle_close(self):
-		print "close"
+		print " Closing Conection ... bye :)"
 		self.state = "closed"
 		self.recvbuf = ""
 		self.sendbuf = ""
@@ -607,8 +756,8 @@ class NodeConn(asyncore.dispatcher):
 				if len(self.recvbuf) < 4 + 12 + 4 + 4 + msglen:
 					return
 				msg = self.recvbuf[4+12+4+4:4+12+4+4+msglen]
-				th = SHA256.new(msg).digest()
-				h = SHA256.new(th).digest()
+				th = sha256(msg)
+				h = sha256(th)
 				if checksum != h[:4]:
 					raise ValueError("got bad checksum %s" % repr(self.recvbuf))
 				self.recvbuf = self.recvbuf[4+12+4+4+msglen:]
@@ -618,11 +767,11 @@ class NodeConn(asyncore.dispatcher):
 				t.deserialize(f)
 				self.got_message(t)
 			else:
-				print "UNKNOWN COMMAND", command, repr(msg)
+				show_debug_msg("Unknown command: '" + command + "' " + repr(msg))
 	def send_message(self, message, pushbuf=False):
 		if self.state != "connected" and not pushbuf:
 			return
-		print "send %s" % repr(message)
+		show_debug_msg("Send %s" % repr(message))
 		command = message.command
 		data = message.serialize()
 		tmsg = "\xf9\xbe\xb4\xd9"
@@ -630,8 +779,8 @@ class NodeConn(asyncore.dispatcher):
 		tmsg += "\x00" * (12 - len(command))
 		tmsg += struct.pack("<I", len(data))
 		if self.ver_send >= 209:
-			th = SHA256.new(data).digest()
-			h = SHA256.new(th).digest()
+			th = sha256(data)
+			h = sha256(th)
 			tmsg += h[:4]
 		tmsg += data
 		self.sendbuf += tmsg
@@ -639,7 +788,7 @@ class NodeConn(asyncore.dispatcher):
 	def got_message(self, message):
 		if self.last_sent + 30 * 60 < time.time():
 			self.send_message(msg_ping())
-		print "recv %s" % repr(message)
+		show_debug_msg("Recv %s" % repr(message))
 		if message.command  == "version":
 			if message.nVersion >= 209:
 				self.send_message(msg_verack())
@@ -657,37 +806,21 @@ class NodeConn(asyncore.dispatcher):
 					want.inv.append(i)
 			if len(want.inv):
 				self.send_message(want)
-		elif message.command == "tx":
-			if not message.tx.is_valid():
-				print "invalid TX"
+		#elif message.command == "tx":
+			#new_transaction_event(message.tx)
+
 		elif message.command == "block":
-			if not message.block.is_valid():
-				print "invalid block"
-			else:
-				new_block_event()
+			new_block_event(message.block)
 
 if __name__ == '__main__':
-	if len(sys.argv) != 2:
-		print "Usage: blkmond CONFIG-FILE"
-		sys.exit(1)
-
-	f = open(sys.argv[1])
-	for line in f:
-		m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
-		if m is None:
-			continue
-		settings[m.group(1)] = m.group(2)
-	f.close()
-
-	if 'host' not in settings:
-		settings['host'] = '127.0.0.1'
-	if 'port' not in settings:
-		settings['port'] = 8333
-	if 'pid' not in settings:
-		settings['pid'] = '/var/lib/xf2/pool/pushpoold.pid'
-
+	if len(sys.argv) == 2:
+		f = open(sys.argv[1])
+		for line in f:
+			m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
+			if m is None:
+				continue
+			settings[m.group(1)] = m.group(2)
+		f.close()
 	settings['port'] = int(settings['port'])
-
 	c = NodeConn(settings['host'], settings['port'])
 	asyncore.loop()
-
