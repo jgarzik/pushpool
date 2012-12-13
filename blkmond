@@ -12,6 +12,11 @@ import sys, re, random, cStringIO, hashlib
 MY_VERSION = 312
 MY_SUBVERSION = ".4"
 
+NETWORKS = [
+	"\xf9\xbe\xb4\xd9", # mainnet
+	"\xfa\xbf\xb5\xda", # testnet3
+]
+
 # Default Settings if no configuration file is given
 settings = {
 	"host": "173.242.112.53",
@@ -735,7 +740,7 @@ class NodeConn(asyncore.dispatcher):
 		while True:
 			if len(self.recvbuf) < 4:
 				return
-			if self.recvbuf[:4] != "\xf9\xbe\xb4\xd9":
+			if self.recvbuf[:4] not in NETWORKS:
 				raise ValueError("got garbage %s" % repr(self.recvbuf))
 			if self.ver_recv < 209:
 				if len(self.recvbuf) < 4 + 12 + 4:
