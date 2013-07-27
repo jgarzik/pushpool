@@ -21,7 +21,7 @@ NETWORKS = [
 settings = {
 	"host": "173.242.112.53",
 	"port": 8333,
-	"debug": False
+	"debug": False,
 	"pid": '/var/lib/xf2/pool/pushpoold.pid'
 }
 
