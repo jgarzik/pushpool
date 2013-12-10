@@ -30,6 +30,7 @@
 #include <openssl/sha.h>
 #include <syslog.h>
 #include "server.h"
+#include "scrypt.h"
 
 struct worker {
 	char			username[64 + 1];
@@ -342,8 +343,12 @@ static int check_hash(const char *remote_host, const char *auth_user,
 	for (i = 0; i < 128/4; i++)
 		data32[i] = bswap_32(data32[i]);
 
-	SHA256(data, 80, hash1);
-	SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
+    if (srv.scrypt) {
+	    scrypt_1024_1_1_256(data, hash);
+    } else {
+	    SHA256(data, 80, hash1);
+	    SHA256(hash1, SHA256_DIGEST_LENGTH, hash);
+    }
 
 	if (hash32[7] != 0) {
 		*reason_out = "H-not-zero";

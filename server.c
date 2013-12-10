@@ -63,6 +63,8 @@ static struct argp_option options[] = {
 	  "Run in foreground, do not fork" },
 	{ "pid", 'P', "FILE", 0,
 	  "Write daemon process id to FILE" },
+    { "scrypt", 1002, NULL, 0,
+      "Use scrypt for hashing function" },
 	{ "strict-free", 1001, NULL, 0,
 	  "For memory-checker runs.  When shutting down server, free local "
 	  "heap, rather than simply exit(2)ing and letting OS clean up." },
@@ -109,6 +111,7 @@ struct server srv = {
 
 	.cred_expire	= 75,
 	.work_expire	= 120,
+    .scrypt         = false,
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -139,6 +142,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	case 1001:			/* --strict-free */
 		strict_free = true;
 		break;
+    case 1002:          /* --scrypt */
+        srv.scrypt = true;
+        break;
 	case ARGP_KEY_ARG:
 		argp_usage(state);	/* too many args */
 		break;
@@ -1296,7 +1302,10 @@ int main (int argc, char *argv[])
 	if (!srv.db_ops->open())
 		goto err_out_listen;
 
-	applog(LOG_INFO, "initialized");
+    if (srv.scrypt)
+	    applog(LOG_INFO, "initialized scrypt");
+    else
+	    applog(LOG_INFO, "initialized SHA256");
 
 	rc = main_loop();
 
