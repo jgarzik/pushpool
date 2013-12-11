@@ -196,6 +196,8 @@ struct server {
 	struct elist_head	sockets;	/* points into listeners */
 
 	struct server_stats	stats;		/* global statistics */
+
+    bool            scrypt;
 };
 
 /* config.c */

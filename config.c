@@ -412,6 +412,9 @@ void read_config(void)
 		exit(1);
 	}
 
+	if (json_is_true(json_object_get(jcfg, "scrypt")))
+		srv.scrypt = true;
+
 	json_decref(jcfg);
 }
 
